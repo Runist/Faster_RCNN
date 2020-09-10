@@ -6,14 +6,19 @@
 # @Brief: 生成先验框
 
 import numpy as np
-# import tensorflow as tf
 
 anchor_box_scales = [128, 256, 512]
 anchor_box_ratios = [[1, 1], [1, 2], [2, 1]]
+rpn_stride = 16
 
 
 def generate_anchors(sizes=None, ratios=None):
-
+    """
+    生成先验框的9种尺寸
+    :param sizes: 先验框的尺寸
+    :param ratios: 先验框的长宽比
+    :return: 9种尺寸的先验框
+    """
     if ratios is None:
         ratios = anchor_box_ratios
     if sizes is None:
@@ -22,7 +27,7 @@ def generate_anchors(sizes=None, ratios=None):
     num_anchors = len(sizes) * len(ratios)
 
     # 每个点9个先验框，4个坐标
-    anchors = np.zeros((num_anchors, 4))
+    anchors = np.zeros((num_anchors, 4), dtype=np.float32)
 
     # 将size的内容在，0维度上重复一次，1维度上重复3次
     anchors[:, 2:] = np.tile(sizes, (2, len(ratios))).T
@@ -44,43 +49,67 @@ def generate_anchors(sizes=None, ratios=None):
     return anchors
 
 
-def shift(shape, anchors, stride=cfg.rpn_stride):
-    shift_x = (np.arange(0, shape[0], dtype=keras.backend.floatx()) + 0.5) * stride
-    shift_y = (np.arange(0, shape[1], dtype=keras.backend.floatx()) + 0.5) * stride
+def shift(feature_map_shape, anchors, stride=rpn_stride):
+    """
+    生成所有的先验框
+    :param feature_map_shape: 特征图的shape
+    :param anchors: 先验框的尺寸
+    :param stride: 特征图对应到原图上的步长，也可以看作是感受野
+    :return:
+    """
+    # 生成 8至600，步长为16 的一维矩阵，shape=(38,)
+    coordinate_x = (np.arange(0, feature_map_shape[0], dtype=np.float32) + 0.5) * stride
+    coordinate_y = (np.arange(0, feature_map_shape[1], dtype=np.float32) + 0.5) * stride
 
-    shift_x, shift_y = np.meshgrid(shift_x, shift_y)
+    # 生成高维矩阵,shape=(38, 38)
+    coordinate_x, coordinate_y = np.meshgrid(coordinate_x, coordinate_y)
 
-    shift_x = np.reshape(shift_x, [-1])
-    shift_y = np.reshape(shift_y, [-1])
+    # 将生成的二维矩阵展平,shape=(1444,)
+    coordinate_x = np.reshape(coordinate_x, [-1])
+    coordinate_y = np.reshape(coordinate_y, [-1])
 
-    shifts = np.stack([
-        shift_x,
-        shift_y,
-        shift_x,
-        shift_y
+    # 将它们按顺序堆叠,shape=(4,1444)
+    coordinates = np.stack([
+        coordinate_x,
+        coordinate_y,
+        coordinate_x,
+        coordinate_y
     ], axis=0)
 
-    shifts = np.transpose(shifts)
+    # 转置,里面存储的是特征图上每个单元格的在实际图像中的坐标中心,shape=(1444,4)
+    coordinates = np.transpose(coordinates)
+
+    # 获取特征图单元格数目38*38=1444 以及 每个单元格上先验框的数量k=9
     number_of_anchors = np.shape(anchors)[0]
+    k = np.shape(coordinates)[0]
 
-    k = np.shape(shifts)[0]
-
-    shifted_anchors = np.reshape(anchors, [1, number_of_anchors, 4]) + np.array(np.reshape(shifts, [k, 1, 4]),
-                                                                                keras.backend.floatx())
+    # 在anchors(9, 4)的0维度上添加一个维度(1, 9, 4) shifts的1维度上添加一个维度(1444, 1, 4) 相加得到框在原图中的坐标(1444, 9, 4)
+    shifted_anchors = np.expand_dims(anchors, axis=0) + np.expand_dims(coordinates, axis=1)
+    # reshape成(12996, 4)
     shifted_anchors = np.reshape(shifted_anchors, [k * number_of_anchors, 4])
+
     return shifted_anchors
 
 
-def get_anchors(shape, width, height):
+def get_anchors(feature_map_shape, width, height):
+    """
+    生成先验框
+    :param feature_map_shape: 特征图的shape
+    :param width: 原图的宽
+    :param height: 原图的高
+    :return: 网络的先验框
+    """
     anchors = generate_anchors()
-    network_anchors = shift(shape, anchors)
+    network_anchors = shift(feature_map_shape, anchors)
+
+    # 把先验框转换成小数的形式
     network_anchors[:, 0] = network_anchors[:, 0] / width
     network_anchors[:, 1] = network_anchors[:, 1] / height
     network_anchors[:, 2] = network_anchors[:, 2] / width
     network_anchors[:, 3] = network_anchors[:, 3] / height
+
+    # 把大于1小于0的框裁剪到不越过边界
     network_anchors = np.clip(network_anchors, 0, 1)
+
     return network_anchors
 
-
-if __name__ == '__main__':
-    anchors = generate_anchors()
