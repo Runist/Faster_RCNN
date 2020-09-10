@@ -6,6 +6,7 @@
 # @Brief:
 
 from tensorflow.keras import layers, backend
+import tensorflow as tf
 
 
 class RoiPooling(layers.Layer):
@@ -57,7 +58,7 @@ class RoiPooling(layers.Layer):
             h = backend.cast(h, 'int32')
 
             # 将输入的特征层看作是图像，截取候选框区域的图像，然后resize成 pool_size * pool_size的大小
-            rs = tf.image.resize_images(feature_map[:, y:y+h, x:x+w, :], (self.pool_size, self.pool_size))
+            rs = tf.image.resize(feature_map[:, y:y+h, x:x+w, :], (self.pool_size, self.pool_size))
             # 将所有截取到的图像保存至一个列表
             outputs.append(rs)
 

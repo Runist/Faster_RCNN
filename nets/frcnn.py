@@ -6,9 +6,13 @@
 # @Brief:
 
 
-from nets.backbone.ResNet import ResNet50
+from nets.backbone.ResNet import ResNet50, classifier_layers
 from tensorflow.keras import layers, models
 from nets.RoiPooling import RoiPooling
+from tensorflow.keras import Input, models
+
+
+num_rois = 128
 
 
 def region_proposal_networks(feature_map, num_anchors=9):
@@ -36,12 +40,21 @@ def region_proposal_networks(feature_map, num_anchors=9):
     return [x_class, x_regr]
 
 
-def get_classifier(base_layers, input_rois, num_rois, nb_classes=21, trainable=False):
+def get_classifier(feature_map, input_rois, num_rois=9, nb_classes=21):
+    """
+    构建分类器
+    :param feature_map: 经过backbone-ResNet(可更换)处理的特征层
+    :param input_rois: roi input 的 Tensor
+    :param num_rois: 输入网络中的候选框数量
+    :param nb_classes: 20分类数量+1背景
+    :return:
+    """
     pooling_regions = 14
-    input_shape = (num_rois, 14, 14, 1024)
-    out_roi_pool = RoiPooling(pooling_regions, num_rois)([base_layers, input_rois])
-    out = classifier_layers(out_roi_pool, input_shape=input_shape, trainable=True)
-    out = layers.TimeDistributed(Flatten())(out)
+
+    out_roi_pool = RoiPooling(pooling_regions, num_rois)([feature_map, input_rois])
+
+    out = classifier_layers(out_roi_pool)
+    out = layers.TimeDistributed(layers.Flatten())(out)
 
     out_class = layers.TimeDistributed(layers.Dense(nb_classes,
                                                     activation='softmax',
@@ -57,6 +70,11 @@ def get_classifier(base_layers, input_rois, num_rois, nb_classes=21, trainable=F
 
 
 def get_model(num_classes):
+    """
+    建立frcnn model
+    :param num_classes: 分类个数20 + 1背景
+    :return: model_rpn, model_classifier, model
+    """
     inputs = Input(shape=(None, None, 3))
     roi_input = Input(shape=(None, 4))
 
@@ -66,8 +84,8 @@ def get_model(num_classes):
     rpn = region_proposal_networks(feature_map, num_anchors=9)
     model_rpn = models.Model(inputs, rpn)
 
-    classifier = get_classifier(base_layers, roi_input, cfg.num_rois, nb_classes=num_classes, trainable=True)
-    model_classifier = Model([inputs, roi_input], classifier)
+    classifier = get_classifier(feature_map, roi_input, num_rois, nb_classes=num_classes)
+    model_classifier = models.Model([inputs, roi_input], classifier)
 
     model = models.Model([inputs, roi_input], rpn+classifier)
 
