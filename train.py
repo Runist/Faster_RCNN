@@ -69,7 +69,6 @@ def main():
 
     reader = DataReader(cfg.annotation_path, cfg.input_shape[:2], cfg.batch_size, box_parse)
     train = reader.read_data_and_split_data(cfg.valid_rate)
-    train = train[:2]
     train_step = len(train)
 
     train_dataset = iter(reader.make_datasets(train))
