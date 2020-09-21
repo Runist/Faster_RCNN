@@ -3,19 +3,17 @@
 # @Author: Runist
 # @Time : 2020/9/7 20:38
 # @Software: PyCharm
-# @Brief:
+# @Brief: faster rcnn模型结构
 
 
-from nets.backbone.ResNet import ResNet50, classifier_layers
+from nets.backbone.ResNet import classifier_layers
 from tensorflow.keras import layers, models
 from nets.RoiPooling import RoiPooling
 from tensorflow.keras import Input, models
+import config.config as cfg
 
 
-num_rois = 128
-
-
-def region_proposal_networks(feature_map, num_anchors=9):
+def rpn(feature_map, num_anchors=9):
     """
     RPN网络
     :param feature_map: 经过backbone-ResNet(可更换)处理的特征层
@@ -29,10 +27,10 @@ def region_proposal_networks(feature_map, num_anchors=9):
                       kernel_initializer='normal', name='rpn_conv1')(feature_map)
 
     x_class = layers.Conv2D(num_anchors, kernel_size=1, activation='sigmoid',
-                            kernel_initializer='uniform', name='rpn_out_class')(x)
+                            kernel_initializer='uniform', name='rpn_class')(x)
 
     x_regr = layers.Conv2D(num_anchors * 4, kernel_size=1,
-                           kernel_initializer='zero', name='rpn_out_regress')(x)
+                           kernel_initializer='zero', name='rpn_regress')(x)
 
     x_class = layers.Reshape((-1, 1), name="classification")(x_class)
     x_regr = layers.Reshape((-1, 4), name="regression")(x_regr)
@@ -40,18 +38,18 @@ def region_proposal_networks(feature_map, num_anchors=9):
     return [x_class, x_regr]
 
 
-def get_classifier(feature_map, input_rois, num_rois=9, nb_classes=21):
+def classifier(share_layer, input_rois, num_rois, nb_classes=21):
     """
     构建分类器
-    :param feature_map: 经过backbone-ResNet(可更换)处理的特征层
+    :param share_layer: 经过backbone-ResNet(可更换)处理的共享特征层
     :param input_rois: roi input 的 Tensor
     :param num_rois: 输入网络中的候选框数量
     :param nb_classes: 20分类数量+1背景
     :return:
     """
-    pooling_regions = 14
+    pooling_size = 14
 
-    out_roi_pool = RoiPooling(pooling_regions, num_rois)([feature_map, input_rois])
+    out_roi_pool = RoiPooling(pooling_size, num_rois)([share_layer, input_rois])
 
     out = classifier_layers(out_roi_pool)
     out = layers.TimeDistributed(layers.Flatten())(out)
@@ -68,25 +66,3 @@ def get_classifier(feature_map, input_rois, num_rois=9, nb_classes=21):
 
     return [out_class, out_regr]
 
-
-def get_model(num_classes):
-    """
-    建立frcnn model
-    :param num_classes: 分类个数20 + 1背景
-    :return: model_rpn, model_classifier, model
-    """
-    inputs = Input(shape=(None, None, 3))
-    roi_input = Input(shape=(None, 4))
-
-    feature_map = ResNet50(inputs)
-
-    # num_anchors = len(cfg.anchor_box_scales) * len(cfg.anchor_box_ratios)
-    rpn = region_proposal_networks(feature_map, num_anchors=9)
-    model_rpn = models.Model(inputs, rpn)
-
-    classifier = get_classifier(feature_map, roi_input, num_rois, nb_classes=num_classes)
-    model_classifier = models.Model([inputs, roi_input], classifier)
-
-    model = models.Model([inputs, roi_input], rpn+classifier)
-
-    return model_rpn, model_classifier, model

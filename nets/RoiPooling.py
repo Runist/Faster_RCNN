@@ -3,7 +3,7 @@
 # @Author: Runist
 # @Time : 2020/9/8 20:19
 # @Software: PyCharm
-# @Brief:
+# @Brief: Roi Pooling层定义
 
 from tensorflow.keras import layers, backend
 import tensorflow as tf

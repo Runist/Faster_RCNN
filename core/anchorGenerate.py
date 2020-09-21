@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
-# @File : generate_anchor.py
+# @File : anchorGenerate.py
 # @Author: Runist
 # @Time : 2020/9/9 20:53
 # @Software: PyCharm
 # @Brief: 生成先验框
 
 import numpy as np
+import config.config as cfg
+
 
 anchor_box_scales = [128, 256, 512]
 anchor_box_ratios = [[1, 1], [1, 2], [2, 1]]
@@ -20,9 +22,9 @@ def generate_anchors(sizes=None, ratios=None):
     :return: 9种尺寸的先验框
     """
     if ratios is None:
-        ratios = anchor_box_ratios
+        ratios = cfg.anchor_box_ratios
     if sizes is None:
-        sizes = anchor_box_scales
+        sizes = cfg.anchor_box_scales
 
     num_anchors = len(sizes) * len(ratios)
 
@@ -49,17 +51,17 @@ def generate_anchors(sizes=None, ratios=None):
     return anchors
 
 
-def shift(feature_map_shape, anchors, stride=rpn_stride):
+def shift(share_layer_shape, anchors, stride=cfg.rpn_stride):
     """
     生成所有的先验框
-    :param feature_map_shape: 特征图的shape
+    :param share_layer_shape: 共享特征层的shape
     :param anchors: 先验框的尺寸
     :param stride: 特征图对应到原图上的步长，也可以看作是感受野
     :return:
     """
     # 生成 8至600，步长为16 的一维矩阵，shape=(38,)
-    coordinate_x = (np.arange(0, feature_map_shape[0], dtype=np.float32) + 0.5) * stride
-    coordinate_y = (np.arange(0, feature_map_shape[1], dtype=np.float32) + 0.5) * stride
+    coordinate_x = (np.arange(0, share_layer_shape[0], dtype=np.float32) + 0.5) * stride
+    coordinate_y = (np.arange(0, share_layer_shape[1], dtype=np.float32) + 0.5) * stride
 
     # 生成高维矩阵,shape=(38, 38)
     coordinate_x, coordinate_y = np.meshgrid(coordinate_x, coordinate_y)
@@ -91,16 +93,16 @@ def shift(feature_map_shape, anchors, stride=rpn_stride):
     return shifted_anchors
 
 
-def get_anchors(feature_map_shape, width, height):
+def get_anchors(share_layer_shape, image_shape):
     """
     生成先验框
-    :param feature_map_shape: 特征图的shape
-    :param width: 原图的宽
-    :param height: 原图的高
+    :param share_layer_shape: 共享特征层的shape
+    :param image_shape: 原图的宽高
     :return: 网络的先验框
     """
+    width, height = image_shape
     anchors = generate_anchors()
-    network_anchors = shift(feature_map_shape, anchors)
+    network_anchors = shift(share_layer_shape, anchors)
 
     # 把先验框转换成小数的形式
     network_anchors[:, 0] = network_anchors[:, 0] / width
