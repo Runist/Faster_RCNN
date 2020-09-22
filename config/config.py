@@ -6,7 +6,7 @@
 # @Brief: 配置文件
 
 num_classes = 20 + 1
-lr = 1e-3
+lr = 1e-4
 epoch = 100
 
 anchor_box_scales = [128, 256, 512]

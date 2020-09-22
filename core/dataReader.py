@@ -215,10 +215,10 @@ class DataReader:
         box_data = np.array(bbox, dtype='float32')
 
         # 将bbox的坐标变0-1
-        box_data[:, 0] = box_data[:, 0] / image_width
-        box_data[:, 1] = box_data[:, 1] / image_height
-        box_data[:, 2] = box_data[:, 2] / image_width
-        box_data[:, 3] = box_data[:, 3] / image_height
+        box_data[:, 0] = box_data[:, 0] / cfg.input_shape[1]
+        box_data[:, 1] = box_data[:, 1] / cfg.input_shape[0]
+        box_data[:, 2] = box_data[:, 2] / cfg.input_shape[1]
+        box_data[:, 3] = box_data[:, 3] / cfg.input_shape[0]
 
         return image, box_data
 
@@ -319,12 +319,11 @@ class DataReader:
         bbox = bbox[np.logical_and(box_w > 1, box_h > 1)]  # discard invalid box
         box_data = np.array(bbox, dtype='float32')
 
-        # TODO 检查宽高的值到底是形变后的还是原图的
         # 将bbox的坐标变0-1
-        box_data[:, 0] = box_data[:, 0] / image_width
-        box_data[:, 1] = box_data[:, 1] / image_height
-        box_data[:, 2] = box_data[:, 2] / image_width
-        box_data[:, 3] = box_data[:, 3] / image_height
+        box_data[:, 0] = box_data[:, 0] / cfg.input_shape[1]
+        box_data[:, 1] = box_data[:, 1] / cfg.input_shape[0]
+        box_data[:, 2] = box_data[:, 2] / cfg.input_shape[1]
+        box_data[:, 3] = box_data[:, 3] / cfg.input_shape[0]
 
         return image, box_data
 
