@@ -636,7 +636,8 @@ def get_classifier_train_data(predict_boxes, true_boxes, num_classes):
         if label != -1:
             label_pos = 4 * label
             sx, sy, sw, sh = cfg.classifier_regr_std
-            coords[label_pos: 4+label_pos] = [sx*tx, sy*ty, sw*tw, sh*th]
+            # 将回归参数×classifier_regr_std后存放到coords的对应位置上，将对应的labels四个位置全置1。
+            coords[label_pos: 4+label_pos] = [sx * tx, sy * ty, sw * tw, sh * th]
             labels[label_pos: 4+label_pos] = [1, 1, 1, 1]
             y_class_regr_coords.append(coords)
             y_class_regr_label.append(labels)

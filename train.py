@@ -170,7 +170,7 @@ def main():
 
             curr_loss = loss_rpn_cls + loss_rpn_regr + loss_class_cls + loss_class_regr
 
-            print('Classifier accuracy for bounding boxes from RPN: {}'.format(class_acc))
+            print('\nClassifier accuracy for bounding boxes from RPN: {:.4f}'.format(class_acc))
             print('Loss RPN classifier: {:.4f}'.format(loss_rpn_cls))
             print('Loss RPN regression: {:.4f}'.format(loss_rpn_regr))
             print('Loss Detector classifier: {:.4f}'.format(loss_class_cls))

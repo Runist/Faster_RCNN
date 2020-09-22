@@ -6,7 +6,7 @@
 # @Brief: 配置文件
 
 num_classes = 20 + 1
-lr = 1e-5
+lr = 1e-3
 epoch = 100
 
 anchor_box_scales = [128, 256, 512]
@@ -32,3 +32,5 @@ data_pretreatment = 'random'
 annotation_path = "./config/2012_train.txt"
 weight_path = './logs/model/faster_rcnn.h5'
 summary_path = './logs/summary/'
+label = ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow', 'diningtable', 'dog',
+         'horse', 'motorbike', 'person', 'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor']
