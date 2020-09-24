@@ -13,18 +13,19 @@ from tensorflow.keras import Input, models
 import config.config as cfg
 
 
-def rpn(feature_map, num_anchors=9):
+def rpn(share_layer, num_anchors=9, is_train=True):
     """
     RPN网络
-    :param feature_map: 经过backbone-ResNet(可更换)处理的特征层
+    :param share_layer: 经过backbone-ResNet(可更换)处理的特征层
     :param num_anchors: 特征层上每个格点上的anchor数量
+    :param is_train: 是否是训练
     :return: 两个特征层
         一个用于输出置信度，内部是否包含物体，通道数为k(二元交叉熵)或2k(交叉熵)
         第二个用于输出预测框的坐标，通道数为4k
 
     """
     x = layers.Conv2D(512, (3, 3), padding='same', activation='relu',
-                      kernel_initializer='normal', name='rpn_conv1')(feature_map)
+                      kernel_initializer='normal', name='rpn_conv1')(share_layer)
 
     x_class = layers.Conv2D(num_anchors, kernel_size=1, activation='sigmoid',
                             kernel_initializer='uniform', name='rpn_class')(x)
@@ -35,7 +36,9 @@ def rpn(feature_map, num_anchors=9):
     x_class = layers.Reshape((-1, 1), name="classification")(x_class)
     x_regr = layers.Reshape((-1, 4), name="regression")(x_regr)
 
-    return [x_class, x_regr]
+    if is_train:
+        return [x_class, x_regr]
+    return [x_class, x_regr, share_layer]
 
 
 def classifier(share_layer, input_rois, num_rois, nb_classes=21):

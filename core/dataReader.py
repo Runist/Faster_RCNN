@@ -610,6 +610,7 @@ def get_classifier_train_data(predict_boxes, true_boxes, num_classes):
                 cxg = (gta[best_idx, 0] + gta[best_idx, 2]) / 2.0
                 cyg = (gta[best_idx, 1] + gta[best_idx, 3]) / 2.0
 
+                # 左上角坐标变换为中心坐标
                 cx = x1 + w / 2.0
                 cy = y1 + h / 2.0
 

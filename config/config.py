@@ -5,7 +5,6 @@
 # @Software: PyCharm
 # @Brief: 配置文件
 
-num_classes = 20 + 1
 lr = 1e-4
 epoch = 100
 
@@ -34,3 +33,5 @@ weight_path = './logs/model/faster_rcnn.h5'
 summary_path = './logs/summary/'
 label = ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow', 'diningtable', 'dog',
          'horse', 'motorbike', 'person', 'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor']
+
+num_classes = len(label) + 1

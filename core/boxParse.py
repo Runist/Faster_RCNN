@@ -10,7 +10,17 @@ import tensorflow as tf
 
 class BoundingBox(object):
     def __init__(self, anchors=None, max_threshold=0.7, min_threshold=0.3, nms_thresh=0.7, top_k=300):
+        """
+        预测框、先验框解析
+        :param anchors: 先验框对象，如果没有，就直接按照特征层shape为38x38生成
+        :param max_threshold: iou的上限阈值
+        :param min_threshold: iou的下限阈值
+        :param nms_thresh: nms的重叠阈值
+        :param top_k: 前300个
+        """
         self.anchors = anchors
+        if anchors is None:
+            self.anchors = get_anchors(cfg.share_layer_shape, cfg.input_shape[:2])
         self.num_anchors = 0 if anchors is None else len(anchors)
         self.max_threshold = max_threshold
         self.min_threshold = min_threshold
@@ -244,3 +254,22 @@ class BoundingBox(object):
             all_boxes.append(good_boxes)
 
         return good_boxes
+
+
+def get_img_output_length(width, height):
+    """
+    获取不同长宽的经过fpn的输出
+    :param width: 宽
+    :param height: 高
+    :return: 处理后的宽和高
+    """
+    def get_output_length(input_length):
+        # input_length += 6
+        filter_sizes = [7, 3, 1, 1]
+        padding = [3, 1, 0, 0]
+        stride = 2
+        for i in range(4):
+            # input_length = (input_length - filter_size + stride) // stride
+            input_length = (input_length + 2 * padding[i] - filter_sizes[i]) // stride + 1
+        return input_length
+    return get_output_length(width), get_output_length(height)
