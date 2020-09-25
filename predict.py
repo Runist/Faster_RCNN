@@ -204,11 +204,11 @@ class FasterRCNN:
                 nms_score = tf.gather(score_to_process, nms_index).numpy()
                 nms_label = c * np.ones((len(nms_index), 1))
 
-                if not result:
+                if result is None:
                     result = np.concatenate((nms_label, np.expand_dims(nms_score, axis=-1), nms_boxes), axis=1)
                 else:
-                    result = np.vstack(result,
-                                       np.concatenate((nms_label, np.expand_dims(nms_score, axis=-1), nms_boxes), axis=1))
+                    result = np.vstack((result,
+                                       np.concatenate((nms_label, np.expand_dims(nms_score, axis=-1), nms_boxes), axis=1)))
 
         top_label = result[:, 0]
         top_conf = result[:, 1]
@@ -264,7 +264,7 @@ class FasterRCNN:
 
 
 if __name__ == '__main__':
-    img_path = r"D:\Python_Code\Tensorflow2.0\YOLOv3\VOCdevkit\VOC2012\JPEGImages\2007_000572.jpg"
+    img_path = r"Your picture path."
     faster_rcnn = FasterRCNN()
 
     image = Image.open(img_path)
