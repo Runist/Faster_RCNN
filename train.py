@@ -108,8 +108,12 @@ def main():
 
             # 将预测结果进行解码
             predict_boxes = box_parse.detection_out(predict_rpn, confidence_threshold=0)
-            # TODO batch_size > 1情况需要改
-            x_roi, y_class_label, y_classifier = get_classifier_train_data(predict_boxes, bbox[0], cfg.num_classes)
+            height, width, _ = np.shape(image[0])
+            x_roi, y_class_label, y_classifier = get_classifier_train_data(predict_boxes,
+                                                                           bbox[0],
+                                                                           width,
+                                                                           height,
+                                                                           cfg.num_classes)
 
             if x_roi is None:
                 continue
@@ -138,6 +142,7 @@ def main():
                 # replace选取后是否放回
                 selected_pos_samples = np.random.choice(pos_samples, cfg.num_rois//2, replace=False).tolist()
 
+            # TODO: 负例可以不重复
             if len(neg_samples) >= cfg.num_rois - len(selected_pos_samples):
                 selected_neg_samples = np.random.choice(neg_samples, cfg.num_rois - len(selected_pos_samples), replace=False).tolist()
             else:

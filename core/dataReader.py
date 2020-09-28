@@ -546,15 +546,16 @@ def iou(box_a, box_b):
     return intersect_area / union_area
 
 
-def get_classifier_train_data(predict_boxes, true_boxes, num_classes):
+def get_classifier_train_data(predict_boxes, true_boxes, img_w, img_h, num_classes):
     """
     生成classifier_train_data的训练数据
     :param predict_boxes: 预测框
     :param true_boxes: 真实框
+    :param img_w: 图片的宽
+    :param img_h: 图片的高
     :param num_classes: 分类数 + 1
     :return: roi_pooling层的输入， label列表， 9种尺度的回归坐标和具体类别
     """
-    width, height = cfg.share_layer_shape[:2]
 
     bboxes = true_boxes[:, :4].numpy()
 
@@ -562,10 +563,10 @@ def get_classifier_train_data(predict_boxes, true_boxes, num_classes):
     # 将原图下0-1范围的框 变换到在 共享特征层从（38，38）尺度下的框
     for bbox_num, bbox in enumerate(bboxes):
 
-        gta[bbox_num, 0] = int(round(bbox[0] * width))
-        gta[bbox_num, 1] = int(round(bbox[1] * height))
-        gta[bbox_num, 2] = int(round(bbox[2] * width))
-        gta[bbox_num, 3] = int(round(bbox[3] * height))
+        gta[bbox_num, 0] = int(round(bbox[0] * img_w / cfg.rpn_stride))
+        gta[bbox_num, 1] = int(round(bbox[1] * img_h / cfg.rpn_stride))
+        gta[bbox_num, 2] = int(round(bbox[2] * img_w / cfg.rpn_stride))
+        gta[bbox_num, 3] = int(round(bbox[3] * img_h / cfg.rpn_stride))
 
     x_roi = []
     y_class_label = []
@@ -574,10 +575,10 @@ def get_classifier_train_data(predict_boxes, true_boxes, num_classes):
 
     # 遍历每个预测框
     for i in range(predict_boxes.shape[0]):
-        x1 = int(round(predict_boxes[i, 0] * width))
-        y1 = int(round(predict_boxes[i, 1] * height))
-        x2 = int(round(predict_boxes[i, 2] * width))
-        y2 = int(round(predict_boxes[i, 3] * height))
+        x1 = int(round(predict_boxes[i, 0] * img_w / cfg.rpn_stride))
+        y1 = int(round(predict_boxes[i, 1] * img_h / cfg.rpn_stride))
+        x2 = int(round(predict_boxes[i, 2] * img_w / cfg.rpn_stride))
+        y2 = int(round(predict_boxes[i, 3] * img_h / cfg.rpn_stride))
 
         best_iou = 0.0
         best_idx = -1

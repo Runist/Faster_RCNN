@@ -220,11 +220,8 @@ class BoundingBox(object):
         :param confidence_threshold: 置信度阈值
         :return:
         """
-        # 网络预测的结果
-        # 置信度
-        p_classification = predictions[0]
-        p_regression = predictions[1]
-        all_boxes = []
+        p_classification = predictions[0]       # 是背景还是物体
+        p_regression = predictions[1]           # 共享特征层上的坐标
 
         # 对每一个图片进行处理，regression 第一个维度是batch size大小，需要遍历为所有共享特征层输出结果
         for i in range(p_regression.shape[0]):
@@ -236,22 +233,17 @@ class BoundingBox(object):
             # 大于 confidence_threshold 则认为有物体
             mask = confidence > confidence_threshold
 
-            if len(confidence[mask]) == 0:
-                good_boxes = decode_bbox
-            else:
-                # 取出得分高于confidence_threshold的框
-                boxes_to_process = decode_bbox[mask]
-                score_to_process = confidence[mask]
+            # 取出得分高于confidence_threshold的框
+            boxes_to_process = decode_bbox[mask]
+            score_to_process = confidence[mask]
 
-                # 非极大抑制，去掉box重合程度高的那一些框，top_k是指最多可以通过nms获得多少个框
-                nms_index = tf.image.non_max_suppression(boxes_to_process, score_to_process, self.top_k,
-                                                         iou_threshold=self.nms_thresh)
+            # 非极大抑制，去掉box重合程度高的那一些框，top_k是指最多可以通过nms获得多少个框
+            nms_index = tf.image.non_max_suppression(boxes_to_process, score_to_process, self.top_k,
+                                                     iou_threshold=self.nms_thresh)
 
-                # 取出在非极大抑制中效果较好的 框和得分
-                good_boxes = tf.gather(boxes_to_process, nms_index).numpy()
-                # good_score = tf.gather(score_to_process, nms_index).numpy()
-
-            all_boxes.append(good_boxes)
+            # 取出在非极大抑制中效果较好的 框和得分
+            good_boxes = tf.gather(boxes_to_process, nms_index).numpy()
+            # good_score = tf.gather(score_to_process, nms_index).numpy()
 
         return good_boxes
 
