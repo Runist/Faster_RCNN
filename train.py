@@ -62,12 +62,12 @@ def main():
     model_all.compile(optimizer=optimizers.SGD(0.001), loss='mae')
 
     # 生成38x38x9个先验框
-    anchors = get_anchors(cfg.share_layer_shape, cfg.input_shape[:2])
+    anchors = get_anchors(cfg.share_layer_shape, cfg.input_shape)
 
     # 根据先验框解析真实框
     box_parse = BoundingBox(anchors)
 
-    reader = DataReader(cfg.annotation_path, cfg.input_shape[:2], cfg.batch_size, box_parse)
+    reader = DataReader(cfg.annotation_path, cfg.input_shape, cfg.batch_size, box_parse)
     train = reader.read_data_and_split_data(cfg.valid_rate)
     train_step = len(train)
 

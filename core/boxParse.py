@@ -6,6 +6,7 @@
 # @Brief: 预测框、真实框互相转换的文件
 import numpy as np
 import tensorflow as tf
+from core.anchorGenerate import get_anchors
 
 
 class BoundingBox(object):
@@ -20,7 +21,7 @@ class BoundingBox(object):
         """
         self.anchors = anchors
         if anchors is None:
-            self.anchors = get_anchors(cfg.share_layer_shape, cfg.input_shape[:2])
+            self.anchors = get_anchors(cfg.share_layer_shape, cfg.input_shape)
         self.num_anchors = 0 if anchors is None else len(anchors)
         self.max_threshold = max_threshold
         self.min_threshold = min_threshold

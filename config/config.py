@@ -13,7 +13,7 @@ anchor_box_ratios = [[1, 1], [1, 2], [2, 1]]
 
 batch_size = 1
 rpn_stride = 16
-input_shape = (600, 600, 3)
+input_shape = (600, 600)
 share_layer_shape = (round(input_shape[0] / rpn_stride), round(input_shape[1] / rpn_stride))
 
 

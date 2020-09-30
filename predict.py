@@ -9,6 +9,7 @@ from nets.backbone.ResNet import ResNet50
 import config.config as cfg
 from core.anchorGenerate import get_anchors
 from core.boxParse import BoundingBox, get_img_output_length
+from core.dataReader import get_new_image_size
 
 import colorsys
 from PIL import Image, ImageFont, ImageDraw
@@ -21,7 +22,7 @@ import tensorflow as tf
 class FasterRCNN:
     def __init__(self):
         self.class_names = cfg.label
-        self.anchors = get_anchors(cfg.share_layer_shape, cfg.input_shape[:2])
+        self.anchors = get_anchors(cfg.share_layer_shape, cfg.input_shape)
 
         self.confidence = 0.5
         # 画框设置不同的颜色
@@ -53,10 +54,7 @@ class FasterRCNN:
         """
         # 获取原图尺寸 和 网络输入尺寸
         image_w, image_h = image.size
-        w, h, _ = cfg.input_shape
-        scale = max(w / image_w, h / image_h)
-        new_w = int(image_w * scale)
-        new_h = int(image_h * scale)
+        new_w, new_h = get_new_image_size(image_w, image_h)
 
         # 插值变换、填充图片
         image = image.resize((new_w, new_h), Image.BICUBIC)
@@ -79,13 +77,15 @@ class FasterRCNN:
         """
         resize_image = self.process_image(image)
         old_w, old_h = image.size
+        # 计算特征层下的宽度、高度
         new_h, new_w = np.shape(resize_image)[1:-1]
+        rpn_height, rpn_width = round(new_h / cfg.rpn_stride), round(new_w / cfg.rpn_stride)
 
         predict_rpn = self.model_rpn.predict(resize_image)
 
         share_layer = predict_rpn[2]
 
-        anchors = get_anchors(get_img_output_length(new_w, new_h), (new_w, new_h))
+        anchors = get_anchors(share_layer_shape=(rpn_width, rpn_height), image_shape=(new_w, new_h))
         box_parse = BoundingBox(anchors)
         predict_boxes = box_parse.detection_out(predict_rpn, confidence_threshold=0)
 
@@ -264,7 +264,7 @@ class FasterRCNN:
 
 
 if __name__ == '__main__':
-    img_path = r"Your picture path."
+    img_path = r"D:\Python_Code\Tensorflow2.0\YOLOv3\VOCdevkit\VOC2012\JPEGImages\2007_002055.jpg"
     faster_rcnn = FasterRCNN()
 
     image = Image.open(img_path)

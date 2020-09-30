@@ -54,87 +54,6 @@ class DataReader:
     def __rand(small=0., big=1.):
         return np.random.rand() * (big - small) + small
 
-    @staticmethod
-    def merge_bboxes(bboxes, cutx, cuty):
-        """
-        四张图的box的合并，合并前是都是基于0坐标的Box。现在要将box合并到同一个坐标系下
-        :param bboxes:
-        :param cutx:
-        :param cuty:
-        :return:
-        """
-        merge_bbox = []
-        for i in range(len(bboxes)):
-            for box in bboxes[i]:
-                tmp_box = []
-                x1, y1, x2, y2 = box[0], box[1], box[2], box[3]
-
-                if i == 0:
-                    # 如果左上角的坐标比分界线大，就不要了
-                    if y1 > cuty or x1 > cutx:
-                        continue
-                    # 分界线在y1和y2之间。就取cuty
-                    if y2 >= cuty >= y1:
-                        y2 = cuty
-                        # 类似于这样的宽或高太短的就不要了
-                        if y2 - y1 < 5:
-                            continue
-                    if x2 >= cutx >= x1:
-                        x2 = cutx
-                        if x2 - x1 < 5:
-                            continue
-
-                if i == 1:
-                    if y2 < cuty or x1 > cutx:
-                        continue
-
-                    if y2 >= cuty >= y1:
-                        y1 = cuty
-                        if y2 - y1 < 5:
-                            continue
-
-                    if x2 >= cutx >= x1:
-                        x2 = cutx
-                        if x2 - x1 < 5:
-                            continue
-
-                if i == 2:
-                    if y2 < cuty or x2 < cutx:
-                        continue
-
-                    if y2 >= cuty >= y1:
-                        y1 = cuty
-                        if y2 - y1 < 5:
-                            continue
-
-                    if x2 >= cutx >= x1:
-                        x1 = cutx
-                        if x2 - x1 < 5:
-                            continue
-
-                if i == 3:
-                    if y1 > cuty or x2 < cutx:
-                        continue
-
-                    if y2 >= cuty >= y1:
-                        y2 = cuty
-                        if y2 - y1 < 5:
-                            continue
-
-                    if x2 >= cutx >= x1:
-                        x1 = cutx
-                        if x2 - x1 < 5:
-                            continue
-
-                tmp_box.append(x1)
-                tmp_box.append(y1)
-                tmp_box.append(x2)
-                tmp_box.append(y2)
-                tmp_box.append(box[-1])
-                merge_bbox.append(tmp_box)
-
-        return merge_bbox
-
     def parse(self, annotation_line):
         """
         为tf.data.Dataset.map编写合适的解析函数，由于函数中某些操作不支持
@@ -148,9 +67,7 @@ class DataReader:
               第三个是输出的类型
         """
 
-        if cfg.data_pretreatment == "mosaic":
-            image, bbox = tf.py_function(self._get_random_data_with_mosaic, [annotation_line], [tf.float32, tf.float32])
-        elif cfg.data_pretreatment == "random":
+        if cfg.data_pretreatment == "random":
             image, bbox = tf.py_function(self._get_random_data, [annotation_line], [tf.float32, tf.float32])
         else:
             image, bbox = tf.py_function(self._get_data, [annotation_line], [tf.float32, tf.float32])
@@ -236,7 +153,7 @@ class DataReader:
         image = tf.image.decode_jpeg(image, channels=3)
 
         image_height, image_width = tf.shape(image)[0], tf.shape(image)[1]
-        input_height, input_width = self.input_shape
+        input_width, input_height = self.input_shape
         flip = False
 
         # 随机左右翻转50%
@@ -657,3 +574,16 @@ def get_classifier_train_data(predict_boxes, true_boxes, img_w, img_h, num_class
     return np.expand_dims(x_roi, axis=0), np.expand_dims(y_class_label, axis=0), np.expand_dims(y_classifier, axis=0)
 
 
+def get_new_image_size(width, height, short_side=600):
+    """
+    获得图像resize后宽高，依据短边来resize
+    :param width: 图像原来的宽
+    :param height: 图像原来的高
+    :param short_side: 图像的短边
+    :return: 新的宽高
+    """
+    scale = max(short_side / width, short_side / height)
+    new_w = int(width * scale)
+    new_h = int(height * scale)
+
+    return new_w, new_h
