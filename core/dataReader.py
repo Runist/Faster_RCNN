@@ -11,6 +11,7 @@ import numpy as np
 import config.config as cfg
 from PIL import Image
 from matplotlib.colors import rgb_to_hsv, hsv_to_rgb
+import cv2 as cv
 
 
 class DataReader:
@@ -164,15 +165,15 @@ class DataReader:
         image = tf.image.random_brightness(image, 0.2)
         # 对比度调节
         image = tf.image.random_contrast(image, 0.3, 2.0)
-        # # 色相调节
+        # 色相调节
         image = tf.image.random_hue(image, 0.15)
         # 饱和度调节
         image = tf.image.random_saturation(image, 0.3, 2.0)
 
         # 对图像进行缩放并且进行长和宽的扭曲，改变图片的比例
-        image_ratio = self.__rand(0.6, 1.4)
+        image_ratio = self.__rand(0.7, 1.3)
         # 随机生成缩放比例，缩小或者放大
-        scale = self.__rand(0.3, 1.5)
+        scale = self.__rand(0.5, 1.5)
 
         # 50%的比例改变width, 50%比例改变height
         if self.__rand(0, 1) > 0.5:
@@ -190,8 +191,8 @@ class DataReader:
 
             # 将变换后的图像，转换为416x416的图像，其余部分用灰色值填充。
             # 将图片按照固定长宽比进行缩放 空缺部分 padding
-            dx = tf.cast((input_width - new_width) / 2, tf.int32)
-            dy = tf.cast((input_height - new_height) / 2, tf.int32)
+            dx = tf.cast(self.__rand(0, (input_width - new_width)) / 2, tf.int32)
+            dy = tf.cast(self.__rand(0, (input_height - new_height)) / 2, tf.int32)
 
             # 按照计算好的长宽进行resize
             image = tf.image.resize(image, [new_height, new_width], method=tf.image.ResizeMethod.BICUBIC)
@@ -209,8 +210,14 @@ class DataReader:
             image = tf.image.resize_with_crop_or_pad(image, input_height, input_width)
 
         # 将图片归一化到0和1之间
-        image /= 255.
+        # image = (image - np.min(image)) / (np.max(image) - np.min(image))
+        image = (image - np.mean(image)) / np.std(image)
+        # image /= 255.
         image = tf.clip_by_value(image, clip_value_min=0.0, clip_value_max=1.0)
+
+        img = tf.image.convert_image_dtype(image, tf.uint8, saturate=True)
+        img = tf.image.encode_jpeg(img)
+        tf.io.write_file("image.jpg", img)
 
         # 为填充过后的图片，矫正bbox坐标，如果没有bbox需要检测annotation文件
         if len(bbox) <= 0:
@@ -243,122 +250,6 @@ class DataReader:
         box_data[:, 3] = box_data[:, 3] / cfg.input_shape[0]
 
         return image, box_data
-
-    def _get_random_data_with_mosaic(self, annotation_line, hue=.1, sat=1.5, val=1.5):
-        """
-        mosaic数据增强方式
-        :param annotation_line: 4行图像信息数据
-        :param hue: 色域变换的h色调
-        :param sat: 饱和度S
-        :param val: 明度V
-        :return:
-        """
-        input_height, input_width = self.input_shape
-
-        min_offset_x = 0.45
-        min_offset_y = 0.45
-        scale_low = 1 - min(min_offset_x, min_offset_y)
-        scale_high = scale_low + 0.2
-
-        image_datas = []
-        box_datas = []
-
-        # 定义分界线，用列表存储
-        place_x = [0, 0, int(input_width * min_offset_x), int(input_width * min_offset_x)]
-        place_y = [0, int(input_height * min_offset_y), int(input_width * min_offset_y), 0]
-        for i in range(4):
-            line = str(annotation_line[i].numpy(), encoding="utf-8").split()
-            image_path = line[0]
-            bbox = np.array([np.array(list(map(int, box.split(',')))) for box in line[1:]])
-
-            # 打开图片
-            image = Image.open(image_path)
-            image = image.convert("RGB")
-            # 图片的大小
-            image_width, image_height = image.size
-
-            # 是否翻转图片
-            flip = self.__rand() < 0.5
-            if flip and len(bbox) > 0:
-                image = image.transpose(Image.FLIP_LEFT_RIGHT)
-                bbox[:, [0, 2]] = image_width - bbox[:, [2, 0]]
-
-            # 对输入进来的图片进行缩放
-            scale = self.__rand(scale_low, scale_high)
-            new_height = int(scale * image_height)
-            new_width = int(scale * image_width)
-            image = image.resize((new_width, new_height), Image.BICUBIC)
-
-            # 进行色域变换，hsv直接从色调、饱和度、明亮度上变化
-            hue = self.__rand(-hue, hue)
-            sat = self.__rand(1, sat) if self.__rand() < .5 else 1 / self.__rand(1, sat)
-            val = self.__rand(1, val) if self.__rand() < .5 else 1 / self.__rand(1, val)
-            x = rgb_to_hsv(np.array(image) / 255.)
-
-            # 第一个通道是h
-            x[..., 0] += hue
-            x[..., 0][x[..., 0] > 1] -= 1
-            x[..., 0][x[..., 0] < 0] += 1
-            # 第二个通道是s
-            x[..., 1] *= sat
-            # 第三个通道是s
-            x[..., 2] *= val
-            x[x > 1] = 1
-            x[x < 0] = 0
-            image = hsv_to_rgb(x)
-
-            image = Image.fromarray((image * 255).astype(np.uint8))
-            # 将图片进行放置，分别对应四张分割图片的位置
-            dx = place_x[i]
-            dy = place_y[i]
-
-            mosaic_image = Image.new('RGB', (input_width, input_height), (128, 128, 128))
-            mosaic_image.paste(image, (dx, dy))
-            mosaic_image = np.array(mosaic_image) / 255
-
-            # 如果没有bbox需要检测annotation文件
-            if len(bbox) <= 0:
-                raise Exception("{} doesn't have any bounding boxes.".format(image_path))
-
-            # 对box进行重新处理
-            np.random.shuffle(bbox)
-            # 重新计算bbox的宽高 乘上尺度 加上偏移
-            bbox[:, [0, 2]] = bbox[:, [0, 2]] * new_width / image_width + dx
-            bbox[:, [1, 3]] = bbox[:, [1, 3]] * new_height / image_height + dy
-
-            # 定义边界(bbox[:, 0:2] < 0的到的是Bool型的列表，True值置为边界)
-            bbox[:, 0:2][bbox[:, 0:2] < 0] = 0
-            bbox[:, 2][bbox[:, 2] > input_width] = input_width
-            bbox[:, 3][bbox[:, 3] > input_height] = input_height
-
-            # 计算新的长宽
-            bbox_w = bbox[:, 2] - bbox[:, 0]
-            bbox_h = bbox[:, 3] - bbox[:, 1]
-
-            # 去除无效数据
-            bbox = bbox[np.logical_and(bbox_w > 1, bbox_h > 1)]
-            bbox = np.array(bbox, dtype=np.float)
-
-            image_datas.append(mosaic_image)
-            box_datas.append(bbox)
-
-        # 随机选取分界线，将图片放上去
-        cutx = np.random.randint(int(input_width * min_offset_x), int(input_width * (1 - min_offset_x)))
-        cuty = np.random.randint(int(input_height * min_offset_y), int(input_height * (1 - min_offset_y)))
-
-        mosaic_image = np.zeros([input_height, input_width, 3])
-        mosaic_image[:cuty, :cutx] = image_datas[0][:cuty, :cutx]
-        mosaic_image[cuty:, :cutx] = image_datas[1][cuty:, :cutx]
-        mosaic_image[cuty:, cutx:] = image_datas[2][cuty:, cutx:]
-        mosaic_image[:cuty, cutx:] = image_datas[3][:cuty, cutx:]
-
-        # 对框进行坐标系的处理
-        new_boxes = self.merge_bboxes(box_datas, cutx, cuty)
-
-        # 将box进行调整
-        box_data = np.array(new_boxes, 'float32')
-
-        return mosaic_image, box_data
 
     def process_true_bbox(self, box_data):
         """
