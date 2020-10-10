@@ -120,6 +120,8 @@ class DataReader:
         image = (1 - image_ones_padded) * 128 + new_image
 
         # 将图片归一化到0和1之间
+        # image = (image - np.min(image)) / (np.max(image) - np.min(image))
+        # image = (image - np.mean(image)) / np.std(image)
         image /= 255.
         image = tf.clip_by_value(image, clip_value_min=0.0, clip_value_max=1.0)
 
@@ -302,10 +304,6 @@ class DataReader:
         # 这是GPU读取方式
         dataset = tf.data.Dataset.from_tensor_slices(annotation)
         if mode == "train":
-            # 如果使用mosaic数据增强的方式，要先将4个路径合成一条数据，先传入
-            if cfg.data_pretreatment == "mosaic":
-                dataset = dataset.repeat().batch(4)
-
             # map的作用就是根据定义的 函数，对整个数据集都进行这样的操作
             # 而不用自己写一个for循环，如：可以自己定义一个归一化操作，然后用.map方法都归一化
             dataset = dataset.map(self.parse, num_parallel_calls=tf.data.experimental.AUTOTUNE)
