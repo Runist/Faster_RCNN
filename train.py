@@ -20,8 +20,6 @@ import tensorflow as tf
 import numpy as np
 import os
 
-from core.frcnn_training import Generator
-
 
 def write_to_log(summary_writer, step, **kwargs):
     """
@@ -53,26 +51,21 @@ def main():
     model_classifier = models.Model([img_input, roi_input], classifier)
     model_all = models.Model([img_input, roi_input], rpn + classifier)
 
-    model_rpn.compile(optimizer=optimizers.Adam(cfg.lr),
-                      loss={'regression': losses_fn.rpn_regr_loss(),
-                            'classification': losses_fn.rpn_cls_loss()})
-
-    model_classifier.compile(optimizer=optimizers.Adam(cfg.lr),
-                             loss=[losses_fn.class_loss_cls, losses_fn.class_loss_regr(cfg.num_classes - 1)],
-                             metrics={'dense_class_{}'.format(cfg.num_classes): 'accuracy'})
-
-    model_all.compile(optimizer=optimizers.SGD(0.001), loss='mae')
+    # model_rpn.compile(optimizer=optimizers.Adam(cfg.lr),
+    #                   loss={'regression': losses_fn.rpn_regr_loss(),
+    #                         'classification': losses_fn.rpn_cls_loss()})
+    #
+    # model_classifier.compile(optimizer=optimizers.Adam(cfg.lr),
+    #                          loss=[losses_fn.class_loss_cls, losses_fn.class_loss_regr(cfg.num_classes - 1)],
+    #                          metrics={'dense_class_{}'.format(cfg.num_classes): 'accuracy'})
+    #
+    # model_all.compile(optimizer=optimizers.SGD(0.001), loss='mae')
 
     # 生成38x38x9个先验框
     anchors = get_anchors(cfg.share_layer_shape, cfg.input_shape)
 
     # 根据先验框解析真实框
     box_parse = BoundingBox(anchors)
-
-    with open(cfg.annotation_path) as f:
-        lines = f.readlines()
-    gen = Generator(box_parse, lines, cfg.num_classes, solid=True)
-    rpn_train = gen.generate()
 
     reader = DataReader(cfg.annotation_path, cfg.input_shape, cfg.batch_size, box_parse)
     train = reader.read_data_and_split_data(cfg.valid_rate)
@@ -83,34 +76,50 @@ def main():
     # loss相关
     losses = np.zeros((train_step, 5))
     best_loss = np.Inf
+    rpn_accuracy_rpn_monitor = []
+    rpn_accuracy_for_epoch = []
 
     # 创建summary
     summary_writer = tf.summary.create_file_writer(logdir=cfg.summary_path)
 
-    for e in range(cfg.epoch):
-        if e % 10 == 0 and e != 0:
-            model_rpn.compile(optimizer=optimizers.Adam(cfg.lr/2),
-                              loss={'regression': losses_fn.rpn_regr_loss(),
-                                    'classification': losses_fn.rpn_cls_loss()})
+    for e in range(1, cfg.epoch + 1):
 
-            model_classifier.compile(optimizer=optimizers.Adam(cfg.lr/2),
-                                     loss=[losses_fn.class_loss_cls, losses_fn.class_loss_regr(cfg.num_classes - 1)],
-                                     metrics={'dense_class_{}'.format(cfg.num_classes): 'accuracy'})
+        # 余弦退火调整学习率
+        if e <= 4:
+            rpn_lr = cfg.rpn_lr_max / 4 * e
+            cls_lr = cfg.cls_lr_max / 4 * e
+        else:
+            rpn_lr = cfg.rpn_lr_max + 0.5 * (cfg.rpn_lr_max - cfg.rpn_lr_min) * (1 + np.cos(5 * e / cfg.epoch * np.pi))
+            cls_lr = cfg.cls_lr_max + 0.5 * (cfg.cls_lr_max - cfg.rpn_lr_min) * (1 + np.cos(5 * e / cfg.epoch * np.pi))
 
-            cfg.lr = cfg.lr/2
-            print("Learning rate decrease to " + str(cfg.lr))
+        model_rpn.compile(optimizer=optimizers.Adam(rpn_lr),
+                          loss={'regression': losses_fn.rpn_regr_loss(),
+                                'classification': losses_fn.rpn_cls_loss()})
+
+        model_classifier.compile(optimizer=optimizers.Adam(cls_lr),
+                                 loss=[losses_fn.class_loss_cls, losses_fn.class_loss_regr(cfg.num_classes - 1)],
+                                 metrics={'dense_class_{}'.format(cfg.num_classes): 'accuracy'})
 
         # keras可视化训练条
         progbar = utils.Progbar(train_step)
-        print('\nEpoch {}/{}'.format(e + 1, cfg.epoch))
+        print('\nEpoch {}/{}'.format(e, cfg.epoch))
         for i in range(train_step):
-            # image, classification, regression, bbox = next(train_dataset)
-            image, classification, regression, bbox = next(rpn_train)
+            if len(rpn_accuracy_rpn_monitor) == train_step:
+                mean_overlapping_bboxes = sum(rpn_accuracy_rpn_monitor)/len(rpn_accuracy_rpn_monitor)
+                rpn_accuracy_rpn_monitor = []
+                print('Average number of overlapping bounding boxes from RPN = {} for {} previous iterations'.
+                      format(mean_overlapping_bboxes, train_step))
+
+                if mean_overlapping_bboxes == 0:
+                    print('RPN is not producing bounding boxes that overlap the ground truth boxes.'
+                          ' Check RPN settings or keep training.')
+
+            # 读取数据
+            image, classification, regression, bbox = next(train_dataset)
 
             # train_on_batch输出结果分成两种，一种只返回loss，第二种返回loss+metrcis，主要由model.compile决定
             # model_rpn单输出模型，且只有loss，没有metrics, 此时 return 为一个标量，代表这个 mini-batch 的 loss
             # 这里的loss_rpn返回一个列表，loss_rpn[0] = loss_rpn[1] + loss_rpn[2]
-
             loss_rpn = model_rpn.train_on_batch(image, [classification, regression])
             predict_rpn = model_rpn.predict_on_batch(image)
 
@@ -124,6 +133,8 @@ def main():
                                                                            cfg.num_classes)
 
             if x_roi is None:
+                rpn_accuracy_rpn_monitor.append(0)
+                rpn_accuracy_for_epoch.append(0)
                 continue
 
             # 平衡classifier的数据正负样本
@@ -140,17 +151,20 @@ def main():
             else:
                 pos_samples = []
 
+            rpn_accuracy_rpn_monitor.append(len(pos_samples))
+            rpn_accuracy_for_epoch.append((len(pos_samples)))
+
             if len(neg_samples) == 0:
                 continue
 
-            # 平衡正负样本
+            # 平衡正样本数量
             if len(pos_samples) < cfg.num_rois // 2:
                 selected_pos_samples = pos_samples.tolist()
             else:
                 # replace选取后是否放回
                 selected_pos_samples = np.random.choice(pos_samples, cfg.num_rois//2, replace=False).tolist()
 
-            # TODO: 负例可以不重复
+            # 平衡负样本数量
             if len(neg_samples) >= cfg.num_rois - len(selected_pos_samples):
                 selected_neg_samples = np.random.choice(neg_samples, cfg.num_rois - len(selected_pos_samples), replace=False).tolist()
             else:
@@ -168,10 +182,10 @@ def main():
             losses[i, 3] = loss_class[2]
             losses[i, 4] = loss_class[3]
 
-            progbar.update(i, [('rpn_cls', np.mean(losses[:i+1, 0])),
-                               ('rpn_regr', np.mean(losses[:i+1, 1])),
-                               ('detector_cls', np.mean(losses[:i+1, 2])),
-                               ('detector_regr', np.mean(losses[:i+1, 3]))])
+            progbar.add(cfg.batch_size, [('rpn_cls', np.mean(losses[:i+1, 0])),
+                                         ('rpn_regr', np.mean(losses[:i+1, 1])),
+                                         ('detector_cls', np.mean(losses[:i+1, 2])),
+                                         ('detector_regr', np.mean(losses[:i+1, 3]))])
 
         # 当一个epoch训练完了以后，输出训练指标
         else:
@@ -181,9 +195,13 @@ def main():
             loss_class_regr = np.mean(losses[:, 3])
             class_acc = np.mean(losses[:, 4])
 
+            mean_overlapping_bboxes = float(sum(rpn_accuracy_for_epoch)) / len(rpn_accuracy_for_epoch)
+            rpn_accuracy_for_epoch = []
+
             curr_loss = loss_rpn_cls + loss_rpn_regr + loss_class_cls + loss_class_regr
 
-            print('\nClassifier accuracy for bounding boxes from RPN: {:.4f}'.format(class_acc))
+            print('\nMean number of bounding boxes from RPN overlapping ground truth boxes: {}'.format(mean_overlapping_bboxes))
+            print('Classifier accuracy for bounding boxes from RPN: {:.4f}'.format(class_acc))
             print('Loss RPN classifier: {:.4f}'.format(loss_rpn_cls))
             print('Loss RPN regression: {:.4f}'.format(loss_rpn_regr))
             print('Loss Detector classifier: {:.4f}'.format(loss_class_cls))
@@ -192,7 +210,8 @@ def main():
             print('The best loss is {:.4f}. The current loss is {:.4f}.'.format(best_loss, curr_loss))
             if curr_loss < best_loss:
                 best_loss = curr_loss
-                print('Saving weights.')
+
+            print('Saving weights.')
             model_all.save_weights("./logs/model/faster_rcnn_{:.4f}.h5".format(curr_loss))
 
             write_to_log(summary_writer,

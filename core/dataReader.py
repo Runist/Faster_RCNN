@@ -286,7 +286,7 @@ class DataReader:
             val_index = np.random.choice(np.where(mask_neg)[0].tolist(),
                                          int(num_neg + num_pos - self.num_regions),
                                          replace=False)
-            # TODO 为什么regression不需要限制负例数量
+
             classification[val_index] = -1
 
         classification = np.reshape(classification, [-1, 1])
@@ -363,8 +363,7 @@ def get_classifier_train_data(predict_boxes, true_boxes, img_w, img_h, num_class
     :return: roi_pooling层的输入， label列表， 9种尺度的回归坐标和具体类别
     """
 
-    # bboxes = true_boxes[:, :4].numpy()
-    bboxes = true_boxes[:, :4]
+    bboxes = true_boxes[:, :4].numpy()
 
     gta = np.zeros((len(bboxes), 4))
     # 将原图下0-1范围的框 变换到在 共享特征层从（38，38）尺度下的框

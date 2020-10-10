@@ -5,7 +5,11 @@
 # @Software: PyCharm
 # @Brief: 配置文件
 
-lr = 1e-4
+rpn_lr_max = 1e-4
+rpn_lr_min = 1e-9
+cls_lr_max = 1e-5
+cls_lr_min = 1e-9
+
 epoch = 100
 
 anchor_box_scales = [128, 256, 512]
@@ -28,7 +32,7 @@ classifier_regr_std = [8.0, 8.0, 4.0, 4.0]
 
 data_pretreatment = 'random'
 
-annotation_path = "./config/2012_train.txt"
+annotation_path = "./config/train.txt"
 weight_path = './logs/model/faster_rcnn.h5'
 summary_path = './logs/summary/'
 label = ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow', 'diningtable', 'dog',
