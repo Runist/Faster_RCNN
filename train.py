@@ -193,7 +193,7 @@ def main():
             if curr_loss < best_loss:
                 best_loss = curr_loss
                 print('Saving weights.')
-            model_all.save_weights("faster_rcnn_{:.4f}".format(curr_loss))
+            model_all.save_weights("./logs/model/faster_rcnn_{:.4f}.h5".format(curr_loss))
 
             write_to_log(summary_writer,
                          step=e,
