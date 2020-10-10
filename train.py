@@ -20,6 +20,8 @@ import tensorflow as tf
 import numpy as np
 import os
 
+from core.frcnn_training import Generator
+
 
 def write_to_log(summary_writer, step, **kwargs):
     """
@@ -67,6 +69,11 @@ def main():
     # 根据先验框解析真实框
     box_parse = BoundingBox(anchors)
 
+    with open(cfg.annotation_path) as f:
+        lines = f.readlines()
+    gen = Generator(box_parse, lines, cfg.num_classes, solid=True)
+    rpn_train = gen.generate()
+
     reader = DataReader(cfg.annotation_path, cfg.input_shape, cfg.batch_size, box_parse)
     train = reader.read_data_and_split_data(cfg.valid_rate)
     train_step = len(train)
@@ -97,7 +104,8 @@ def main():
         progbar = utils.Progbar(train_step)
         print('\nEpoch {}/{}'.format(e + 1, cfg.epoch))
         for i in range(train_step):
-            image, classification, regression, bbox = next(train_dataset)
+            # image, classification, regression, bbox = next(train_dataset)
+            image, classification, regression, bbox = next(rpn_train)
 
             # train_on_batch输出结果分成两种，一种只返回loss，第二种返回loss+metrcis，主要由model.compile决定
             # model_rpn单输出模型，且只有loss，没有metrics, 此时 return 为一个标量，代表这个 mini-batch 的 loss
