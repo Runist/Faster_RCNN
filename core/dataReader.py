@@ -217,10 +217,6 @@ class DataReader:
         # image /= 255.
         image = tf.clip_by_value(image, clip_value_min=0.0, clip_value_max=1.0)
 
-        img = tf.image.convert_image_dtype(image, tf.uint8, saturate=True)
-        img = tf.image.encode_jpeg(img)
-        tf.io.write_file("image.jpg", img)
-
         # 为填充过后的图片，矫正bbox坐标，如果没有bbox需要检测annotation文件
         if len(bbox) <= 0:
             raise Exception("{} doesn't have any bounding boxes.".format(image_path))
