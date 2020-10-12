@@ -9,6 +9,7 @@ rpn_lr_max = 1e-4
 rpn_lr_min = 1e-9
 cls_lr_max = 1e-5
 cls_lr_min = 1e-9
+lr = 1e-4
 
 epoch = 100
 
@@ -26,8 +27,10 @@ num_regions = 256
 valid_rate = 0
 shuffle_size = 1024
 
+rpn_min_overlap = 0.3
+rpn_max_overlap = 0.7
 classifier_min_overlap = 0.1
-classifier_max_overlap = 0.2
+classifier_max_overlap = 0.5
 classifier_regr_std = [8.0, 8.0, 4.0, 4.0]
 
 data_pretreatment = 'random'

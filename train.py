@@ -51,21 +51,21 @@ def main():
     model_classifier = models.Model([img_input, roi_input], classifier)
     model_all = models.Model([img_input, roi_input], rpn + classifier)
 
-    # model_rpn.compile(optimizer=optimizers.Adam(cfg.lr),
-    #                   loss={'regression': losses_fn.rpn_regr_loss(),
-    #                         'classification': losses_fn.rpn_cls_loss()})
-    #
-    # model_classifier.compile(optimizer=optimizers.Adam(cfg.lr),
-    #                          loss=[losses_fn.class_loss_cls, losses_fn.class_loss_regr(cfg.num_classes - 1)],
-    #                          metrics={'dense_class_{}'.format(cfg.num_classes): 'accuracy'})
-    #
-    # model_all.compile(optimizer=optimizers.SGD(0.001), loss='mae')
+    model_rpn.compile(optimizer=optimizers.Adam(cfg.lr),
+                      loss={'regression': losses_fn.rpn_regr_loss(),
+                            'classification': losses_fn.rpn_cls_loss()})
+
+    model_classifier.compile(optimizer=optimizers.Adam(cfg.lr),
+                             loss=[losses_fn.class_loss_cls, losses_fn.class_loss_regr(cfg.num_classes - 1)],
+                             metrics={'dense_class_{}'.format(cfg.num_classes): 'accuracy'})
+
+    model_all.compile(optimizer=optimizers.SGD(0.001), loss='mae')
 
     # 生成38x38x9个先验框
     anchors = get_anchors(cfg.share_layer_shape, cfg.input_shape)
 
     # 根据先验框解析真实框
-    box_parse = BoundingBox(anchors)
+    box_parse = BoundingBox(anchors, max_threshold=cfg.rpn_max_overlap, min_threshold=cfg.rpn_min_overlap)
 
     reader = DataReader(cfg.annotation_path, cfg.input_shape, cfg.batch_size, box_parse)
     train = reader.read_data_and_split_data(cfg.valid_rate)
@@ -84,21 +84,22 @@ def main():
 
     for e in range(1, cfg.epoch + 1):
 
-        # 余弦退火调整学习率
-        if e <= 4:
-            rpn_lr = cfg.rpn_lr_max / 4 * e
-            cls_lr = cfg.cls_lr_max / 4 * e
-        else:
-            rpn_lr = cfg.rpn_lr_max + 0.5 * (cfg.rpn_lr_max - cfg.rpn_lr_min) * (1 + np.cos(5 * e / cfg.epoch * np.pi))
-            cls_lr = cfg.cls_lr_max + 0.5 * (cfg.cls_lr_max - cfg.rpn_lr_min) * (1 + np.cos(5 * e / cfg.epoch * np.pi))
+        if e % 10 == 0 and e != 0:
+            # # 余弦退火调整学习率
+            # if e <= 4:
+            #     rpn_lr = cfg.rpn_lr_max / 4 * e
+            #     cls_lr = cfg.cls_lr_max / 4 * e
+            # else:
+            #     rpn_lr = cfg.rpn_lr_max + 0.5 * (cfg.rpn_lr_max - cfg.rpn_lr_min) * (1 + np.cos(5 * e / cfg.epoch * np.pi))
+            #     cls_lr = cfg.cls_lr_max + 0.5 * (cfg.cls_lr_max - cfg.rpn_lr_min) * (1 + np.cos(5 * e / cfg.epoch * np.pi))
+            cfg.lr = cfg.lr / 2
+            model_rpn.compile(optimizer=optimizers.Adam(cfg.lr),
+                              loss={'regression': losses_fn.rpn_regr_loss(),
+                                    'classification': losses_fn.rpn_cls_loss()})
 
-        model_rpn.compile(optimizer=optimizers.Adam(rpn_lr),
-                          loss={'regression': losses_fn.rpn_regr_loss(),
-                                'classification': losses_fn.rpn_cls_loss()})
-
-        model_classifier.compile(optimizer=optimizers.Adam(cls_lr),
-                                 loss=[losses_fn.class_loss_cls, losses_fn.class_loss_regr(cfg.num_classes - 1)],
-                                 metrics={'dense_class_{}'.format(cfg.num_classes): 'accuracy'})
+            model_classifier.compile(optimizer=optimizers.Adam(cfg.lr),
+                                     loss=[losses_fn.class_loss_cls, losses_fn.class_loss_regr(cfg.num_classes - 1)],
+                                     metrics={'dense_class_{}'.format(cfg.num_classes): 'accuracy'})
 
         # keras可视化训练条
         progbar = utils.Progbar(train_step)
@@ -107,7 +108,7 @@ def main():
             if len(rpn_accuracy_rpn_monitor) == train_step:
                 mean_overlapping_bboxes = sum(rpn_accuracy_rpn_monitor)/len(rpn_accuracy_rpn_monitor)
                 rpn_accuracy_rpn_monitor = []
-                print('Average number of overlapping bounding boxes from RPN = {} for {} previous iterations'.
+                print('Average number of overlapping bounding boxes from RPN = {:.4f} for {} previous iterations'.
                       format(mean_overlapping_bboxes, train_step))
 
                 if mean_overlapping_bboxes == 0:
