@@ -34,6 +34,29 @@ def write_to_log(summary_writer, step, **kwargs):
             tf.summary.scalar(key, value, step=step)
 
 
+def lr_schedule(e, mode='normal'):
+    """
+    学习率调整
+    :param e: 当前训练的epoch
+    :param mode: normal为每十个epoch学习率减半，cosine_anneal为余弦退火调整
+    :return: rpn_lr, cls_lr
+    """
+    if mode == 'cosine_anneal':
+        # 余弦退火调整学习率
+        if e <= 4:
+            rpn_lr = cfg.rpn_lr_max / 4 * e
+            cls_lr = cfg.cls_lr_max / 4 * e
+        else:
+            rpn_lr = cfg.rpn_lr_max + 0.5 * (cfg.rpn_lr_max - cfg.rpn_lr_min) * (1 + np.cos(e / cfg.epoch * np.pi))
+            cls_lr = cfg.cls_lr_max + 0.5 * (cfg.cls_lr_max - cfg.rpn_lr_min) * (1 + np.cos(e / cfg.epoch * np.pi))
+        return rpn_lr, cls_lr
+    else:
+        if e % 10 == 0 and e != 0:
+            cfg.lr /= 2
+
+        return cfg.lr, cfg.lr
+
+
 def main():
     gpus = tf.config.experimental.list_physical_devices("GPU")
     if gpus:
@@ -81,15 +104,7 @@ def main():
     summary_writer = tf.summary.create_file_writer(logdir=cfg.summary_path)
 
     for e in range(1, cfg.epoch + 1):
-
-        # 余弦退火调整学习率
-        if e <= 4:
-            rpn_lr = cfg.rpn_lr_max / 4 * e
-            cls_lr = cfg.cls_lr_max / 4 * e
-        else:
-            rpn_lr = cfg.rpn_lr_max + 0.5 * (cfg.rpn_lr_max - cfg.rpn_lr_min) * (1 + np.cos(e / cfg.epoch * np.pi))
-            cls_lr = cfg.cls_lr_max + 0.5 * (cfg.cls_lr_max - cfg.rpn_lr_min) * (1 + np.cos(e / cfg.epoch * np.pi))
-
+        rpn_lr, cls_lr = lr_schedule(e, mode='cosine_anneal')
         print("Learning rate adjustment, rpn_lr: {}, cls_lr: {}".format(rpn_lr, cls_lr))
 
         model_rpn.compile(optimizer=optimizers.Adam(rpn_lr),
