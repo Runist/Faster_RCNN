@@ -51,15 +51,15 @@ def main():
     model_classifier = models.Model([img_input, roi_input], classifier)
     model_all = models.Model([img_input, roi_input], rpn + classifier)
 
-    model_rpn.compile(optimizer=optimizers.Adam(cfg.lr),
-                      loss={'regression': losses_fn.rpn_regr_loss(),
-                            'classification': losses_fn.rpn_cls_loss()})
-
-    model_classifier.compile(optimizer=optimizers.Adam(cfg.lr),
-                             loss=[losses_fn.class_loss_cls, losses_fn.class_loss_regr(cfg.num_classes - 1)],
-                             metrics={'dense_class_{}'.format(cfg.num_classes): 'accuracy'})
-
-    model_all.compile(optimizer=optimizers.SGD(0.001), loss='mae')
+    # model_rpn.compile(optimizer=optimizers.Adam(cfg.lr / 100),
+    #                   loss={'regression': losses_fn.rpn_regr_loss(),
+    #                         'classification': losses_fn.rpn_cls_loss()})
+    #
+    # model_classifier.compile(optimizer=optimizers.Adam(cfg.lr),
+    #                          loss=[losses_fn.class_loss_cls, losses_fn.class_loss_regr(cfg.num_classes - 1)],
+    #                          metrics={'dense_class_{}'.format(cfg.num_classes): 'accuracy'})
+    #
+    # model_all.compile(optimizer=optimizers.SGD(0.001), loss='mae')
 
     # 生成38x38x9个先验框
     anchors = get_anchors(cfg.share_layer_shape, cfg.input_shape)
@@ -76,44 +76,34 @@ def main():
     # loss相关
     losses = np.zeros((train_step, 5))
     best_loss = np.Inf
-    rpn_accuracy_rpn_monitor = []
-    rpn_accuracy_for_epoch = []
 
     # 创建summary
     summary_writer = tf.summary.create_file_writer(logdir=cfg.summary_path)
 
     for e in range(1, cfg.epoch + 1):
 
-        if e % 10 == 0 and e != 0:
-            # # 余弦退火调整学习率
-            # if e <= 4:
-            #     rpn_lr = cfg.rpn_lr_max / 4 * e
-            #     cls_lr = cfg.cls_lr_max / 4 * e
-            # else:
-            #     rpn_lr = cfg.rpn_lr_max + 0.5 * (cfg.rpn_lr_max - cfg.rpn_lr_min) * (1 + np.cos(5 * e / cfg.epoch * np.pi))
-            #     cls_lr = cfg.cls_lr_max + 0.5 * (cfg.cls_lr_max - cfg.rpn_lr_min) * (1 + np.cos(5 * e / cfg.epoch * np.pi))
-            cfg.lr = cfg.lr / 2
-            model_rpn.compile(optimizer=optimizers.Adam(cfg.lr),
-                              loss={'regression': losses_fn.rpn_regr_loss(),
-                                    'classification': losses_fn.rpn_cls_loss()})
+        # 余弦退火调整学习率
+        if e <= 4:
+            rpn_lr = cfg.rpn_lr_max / 4 * e
+            cls_lr = cfg.cls_lr_max / 4 * e
+        else:
+            rpn_lr = cfg.rpn_lr_max + 0.5 * (cfg.rpn_lr_max - cfg.rpn_lr_min) * (1 + np.cos(e / cfg.epoch * np.pi))
+            cls_lr = cfg.cls_lr_max + 0.5 * (cfg.cls_lr_max - cfg.rpn_lr_min) * (1 + np.cos(e / cfg.epoch * np.pi))
 
-            model_classifier.compile(optimizer=optimizers.Adam(cfg.lr),
-                                     loss=[losses_fn.class_loss_cls, losses_fn.class_loss_regr(cfg.num_classes - 1)],
-                                     metrics={'dense_class_{}'.format(cfg.num_classes): 'accuracy'})
+        print("Learning rate adjustment, rpn_lr: {}, cls_lr: {}".format(rpn_lr, cls_lr))
+
+        model_rpn.compile(optimizer=optimizers.Adam(rpn_lr),
+                          loss={'regression': losses_fn.rpn_regr_loss(),
+                                'classification': losses_fn.rpn_cls_loss()})
+
+        model_classifier.compile(optimizer=optimizers.Adam(cls_lr),
+                                 loss=[losses_fn.class_loss_cls, losses_fn.class_loss_regr(cfg.num_classes - 1)],
+                                 metrics={'dense_class_{}'.format(cfg.num_classes): 'accuracy'})
 
         # keras可视化训练条
         progbar = utils.Progbar(train_step)
-        print('\nEpoch {}/{}'.format(e, cfg.epoch))
+        print('Epoch {}/{}'.format(e, cfg.epoch))
         for i in range(train_step):
-            if len(rpn_accuracy_rpn_monitor) == train_step:
-                mean_overlapping_bboxes = sum(rpn_accuracy_rpn_monitor)/len(rpn_accuracy_rpn_monitor)
-                rpn_accuracy_rpn_monitor = []
-                print('Average number of overlapping bounding boxes from RPN = {:.4f} for {} previous iterations'.
-                      format(mean_overlapping_bboxes, train_step))
-
-                if mean_overlapping_bboxes == 0:
-                    print('RPN is not producing bounding boxes that overlap the ground truth boxes.'
-                          ' Check RPN settings or keep training.')
 
             # 读取数据
             image, classification, regression, bbox = next(train_dataset)
@@ -134,8 +124,6 @@ def main():
                                                                            cfg.num_classes)
 
             if x_roi is None:
-                rpn_accuracy_rpn_monitor.append(0)
-                rpn_accuracy_for_epoch.append(0)
                 continue
 
             # 平衡classifier的数据正负样本
@@ -151,9 +139,6 @@ def main():
                 pos_samples = pos_samples[0]
             else:
                 pos_samples = []
-
-            rpn_accuracy_rpn_monitor.append(len(pos_samples))
-            rpn_accuracy_for_epoch.append((len(pos_samples)))
 
             if len(neg_samples) == 0:
                 continue
@@ -173,6 +158,7 @@ def main():
 
             selected_samples = selected_pos_samples + selected_neg_samples
 
+            # 训练分类器
             loss_class = model_classifier.train_on_batch([image,
                                                           x_roi[:, selected_samples, :]],
                                                          [y_class_label[:, selected_samples, :], y_classifier[:, selected_samples, :]])
@@ -183,6 +169,7 @@ def main():
             losses[i, 3] = loss_class[2]
             losses[i, 4] = loss_class[3]
 
+            # 输出训练过程
             progbar.add(cfg.batch_size, [('rpn_cls', np.mean(losses[:i+1, 0])),
                                          ('rpn_regr', np.mean(losses[:i+1, 1])),
                                          ('detector_cls', np.mean(losses[:i+1, 2])),
@@ -196,13 +183,9 @@ def main():
             loss_class_regr = np.mean(losses[:, 3])
             class_acc = np.mean(losses[:, 4])
 
-            mean_overlapping_bboxes = float(sum(rpn_accuracy_for_epoch)) / len(rpn_accuracy_for_epoch)
-            rpn_accuracy_for_epoch = []
-
             curr_loss = loss_rpn_cls + loss_rpn_regr + loss_class_cls + loss_class_regr
 
-            print('\nMean number of bounding boxes from RPN overlapping ground truth boxes: {}'.format(mean_overlapping_bboxes))
-            print('Classifier accuracy for bounding boxes from RPN: {:.4f}'.format(class_acc))
+            print('\nClassifier accuracy for bounding boxes from RPN: {:.4f}'.format(class_acc))
             print('Loss RPN classifier: {:.4f}'.format(loss_rpn_cls))
             print('Loss RPN regression: {:.4f}'.format(loss_rpn_regr))
             print('Loss Detector classifier: {:.4f}'.format(loss_class_cls))
@@ -212,7 +195,7 @@ def main():
             if curr_loss < best_loss:
                 best_loss = curr_loss
 
-            print('Saving weights.')
+            print('Saving weights.\n')
             model_all.save_weights("./logs/model/faster_rcnn_{:.4f}.h5".format(curr_loss))
 
             write_to_log(summary_writer,

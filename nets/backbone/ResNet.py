@@ -5,7 +5,7 @@
 # @Software: PyCharm
 # @Brief: ResNet 的 backbone
 
-from tensorflow.keras import layers, models, applications
+from tensorflow.keras import layers, models, applications, initializers
 
 
 class BasicResBlock(layers.Layer):
@@ -20,13 +20,16 @@ class BasicResBlock(layers.Layer):
         filter1, filter2, filter3 = filters
         super(BasicResBlock, self).__init__(**kwargs)
 
-        self.conv1 = layers.Conv2D(filter1, kernel_size=1, strides=strides, use_bias=False)
+        self.conv1 = layers.Conv2D(filter1, kernel_size=1, strides=strides, use_bias=False,
+                                   kernel_initializer='he_normal')
         self.bn1 = layers.BatchNormalization()
 
-        self.conv2 = layers.Conv2D(filter2, kernel_size=3, strides=strides, use_bias=False, padding='same')
+        self.conv2 = layers.Conv2D(filter2, kernel_size=3, strides=strides, use_bias=False, padding='same',
+                                   kernel_initializer='he_normal')
         self.bn2 = layers.BatchNormalization()
 
-        self.conv3 = layers.Conv2D(filter3, kernel_size=1, strides=strides, use_bias=False)
+        self.conv3 = layers.Conv2D(filter3, kernel_size=1, strides=strides, use_bias=False,
+                                   kernel_initializer='he_normal')
         self.bn3 = layers.BatchNormalization()
 
         self.relu = layers.ReLU()
@@ -69,13 +72,16 @@ class BottleneckResBlock(layers.Layer):
         filter1, filter2, filter3 = filters
         super(BottleneckResBlock, self).__init__(**kwargs)
 
-        self.shortcut = layers.Conv2D(filter3, kernel_size=1, strides=strides, use_bias=False)
+        self.shortcut = layers.Conv2D(filter3, kernel_size=1, strides=strides, use_bias=False,
+                                      kernel_initializer='he_normal')
         self.shortcut_bn = layers.BatchNormalization()
 
-        self.conv1 = layers.Conv2D(filter1, kernel_size=1, strides=strides, use_bias=False)
+        self.conv1 = layers.Conv2D(filter1, kernel_size=1, strides=strides, use_bias=False,
+                                   kernel_initializer='he_normal')
         self.bn1 = layers.BatchNormalization()
 
-        self.conv2 = layers.Conv2D(filter2, kernel_size=3, use_bias=False, padding='same')
+        self.conv2 = layers.Conv2D(filter2, kernel_size=3, use_bias=False, padding='same',
+                                   kernel_initializer='he_normal')
         self.bn2 = layers.BatchNormalization()
 
         self.conv3 = layers.Conv2D(filter3, kernel_size=1, use_bias=False)
@@ -113,7 +119,6 @@ class BottleneckResBlock(layers.Layer):
         return x
 
 
-
 class BasicResTDBlock(layers.Layer):
 
     def __init__(self, filters, strides=1, **kwargs):
@@ -126,13 +131,16 @@ class BasicResTDBlock(layers.Layer):
         filter1, filter2, filter3 = filters
         super(BasicResTDBlock, self).__init__(**kwargs)
 
-        self.conv1_td = layers.TimeDistributed(layers.Conv2D(filter1, kernel_size=1, strides=strides, use_bias=False))
+        self.conv1_td = layers.TimeDistributed(layers.Conv2D(filter1, kernel_size=1, strides=strides, use_bias=False,
+                                                             kernel_initializer='he_normal'))
         self.bn1_td = layers.TimeDistributed(layers.BatchNormalization())
 
-        self.conv2_td = layers.TimeDistributed(layers.Conv2D(filter2, kernel_size=3, strides=strides, use_bias=False, padding='same'))
+        self.conv2_td = layers.TimeDistributed(layers.Conv2D(filter2, kernel_size=3, strides=strides, use_bias=False, padding='same',
+                                                             kernel_initializer='he_normal'))
         self.bn2_td = layers.TimeDistributed(layers.BatchNormalization())
 
-        self.conv3_td = layers.TimeDistributed(layers.Conv2D(filter3, kernel_size=1, strides=strides, use_bias=False))
+        self.conv3_td = layers.TimeDistributed(layers.Conv2D(filter3, kernel_size=1, strides=strides, use_bias=False,
+                                                             kernel_initializer='he_normal'))
         self.bn3_td = layers.TimeDistributed(layers.BatchNormalization())
 
         self.relu = layers.ReLU()
@@ -175,16 +183,20 @@ class BottleneckResTDBlock(layers.Layer):
         filter1, filter2, filter3 = filters
         super(BottleneckResTDBlock, self).__init__(**kwargs)
 
-        self.shortcut_td = layers.TimeDistributed(layers.Conv2D(filter3, kernel_size=1, strides=strides, use_bias=False))
+        self.shortcut_td = layers.TimeDistributed(layers.Conv2D(filter3, kernel_size=1, strides=strides, use_bias=False,
+                                                                kernel_initializer='he_normal'))
         self.shortcut_bn_td = layers.TimeDistributed(layers.BatchNormalization())
 
-        self.conv1_td = layers.TimeDistributed(layers.Conv2D(filter1, kernel_size=1, strides=strides, use_bias=False))
+        self.conv1_td = layers.TimeDistributed(layers.Conv2D(filter1, kernel_size=1, strides=strides, use_bias=False,
+                                                             kernel_initializer='he_normal'))
         self.bn1_td = layers.TimeDistributed(layers.BatchNormalization())
 
-        self.conv2_td = layers.TimeDistributed(layers.Conv2D(filter2, kernel_size=3, use_bias=False, padding='same'))
+        self.conv2_td = layers.TimeDistributed(layers.Conv2D(filter2, kernel_size=3, use_bias=False, padding='same',
+                                                             kernel_initializer='he_normal'))
         self.bn2_td = layers.TimeDistributed(layers.BatchNormalization())
 
-        self.conv3_td = layers.TimeDistributed(layers.Conv2D(filter3, kernel_size=1, use_bias=False))
+        self.conv3_td = layers.TimeDistributed(layers.Conv2D(filter3, kernel_size=1, use_bias=False,
+                                                             kernel_initializer='he_normal'))
         self.bn3_td = layers.TimeDistributed(layers.BatchNormalization())
 
         self.relu = layers.ReLU()
@@ -245,7 +257,8 @@ def ResNet50(input_image):
     x = layers.ZeroPadding2D((3, 3))(input_image)
 
     # (606, 606, 3)
-    x = layers.Conv2D(filters=64, kernel_size=7, strides=2, name='conv1', use_bias=True)(x)
+    x = layers.Conv2D(filters=64, kernel_size=7, strides=2, name='conv1',
+                      use_bias=False, kernel_initializer='he_normal')(x)
     x = layers.BatchNormalization(momentum=0.9, epsilon=1e-5, name="conv1/BatchNorm")(x)
     x = layers.ReLU()(x)
 

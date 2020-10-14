@@ -7,10 +7,8 @@
 
 
 from nets.backbone.ResNet import classifier_layers
-from tensorflow.keras import layers, models
+from tensorflow.keras import layers
 from nets.RoiPooling import RoiPooling
-from tensorflow.keras import Input, models
-import config.config as cfg
 
 
 def rpn(share_layer, num_anchors=9, is_train=True):
@@ -25,10 +23,10 @@ def rpn(share_layer, num_anchors=9, is_train=True):
 
     """
     x = layers.Conv2D(512, (3, 3), padding='same', activation='relu',
-                      kernel_initializer='normal', name='rpn_conv1')(share_layer)
+                      kernel_initializer='he_normal', name='rpn_conv1')(share_layer)
 
     x_class = layers.Conv2D(num_anchors, kernel_size=1, activation='sigmoid',
-                            kernel_initializer='uniform', name='rpn_class')(x)
+                            kernel_initializer='zero', name='rpn_class')(x)
 
     x_regr = layers.Conv2D(num_anchors * 4, kernel_size=1,
                            kernel_initializer='zero', name='rpn_regress')(x)
