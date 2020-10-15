@@ -44,7 +44,7 @@ class FasterRCNN:
         self.model_classifier = models.Model([share_layer_input, roi_input], classifier)
 
         self.model_rpn.load_weights(cfg.weight_path, by_name=True)
-        self.model_classifier.load_weights(cfg.weight_path, by_name=True, skip_mismatch=True)
+        self.model_classifier.load_weights(cfg.weight_path, by_name=True)
 
     def process_image(self, image):
         """
@@ -79,7 +79,8 @@ class FasterRCNN:
         old_w, old_h = image.size
         # 计算特征层下的宽度、高度
         new_h, new_w = np.shape(resize_image)[1:-1]
-        rpn_height, rpn_width = round(new_h / cfg.rpn_stride), round(new_w / cfg.rpn_stride)
+        # 计算图片输入到rpn的输出shape，[-1]是因为rpn的输出list，最后一个是共享特征层
+        rpn_height, rpn_width = self.model_rpn.compute_output_shape((1, new_h, new_w, 3))[-1][1:-1]
 
         predict_rpn = self.model_rpn.predict(resize_image)
 
@@ -264,7 +265,7 @@ class FasterRCNN:
 
 
 if __name__ == '__main__':
-    img_path = r"D:\Python_Code\Dataset\VOCdevkit\VOC2012\JPEGImages\2008_000833.jpg"
+    img_path = r"D:\Python_Code\Dataset\VOCdevkit\VOC2012\JPEGImages\2008_001708.jpg"
     faster_rcnn = FasterRCNN()
 
     image = Image.open(img_path)

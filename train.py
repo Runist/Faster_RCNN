@@ -75,16 +75,6 @@ def main():
     model_classifier = models.Model([img_input, roi_input], classifier)
     model_all = models.Model([img_input, roi_input], rpn + classifier)
 
-    # model_rpn.compile(optimizer=optimizers.Adam(cfg.lr / 100),
-    #                   loss={'regression': losses_fn.rpn_regr_loss(),
-    #                         'classification': losses_fn.rpn_cls_loss()})
-    #
-    # model_classifier.compile(optimizer=optimizers.Adam(cfg.lr),
-    #                          loss=[losses_fn.class_loss_cls, losses_fn.class_loss_regr(cfg.num_classes - 1)],
-    #                          metrics={'dense_class_{}'.format(cfg.num_classes): 'accuracy'})
-    #
-    # model_all.compile(optimizer=optimizers.SGD(0.001), loss='mae')
-
     # 生成38x38x9个先验框
     anchors = get_anchors(cfg.share_layer_shape, cfg.input_shape)
 
@@ -212,9 +202,9 @@ def main():
                 best_loss = curr_loss
 
             print('Saving weights.\n')
-            model_all.save("./logs/model/faster_rcnn_{:.4f}.h5".format(curr_loss))
+            model_all.save_weights("./logs/model/faster_rcnn_{:.4f}.h5".format(curr_loss))
             model_rpn.save_weights("./logs/model/rpn_{:.4f}.h5".format(loss_rpn_cls + loss_rpn_regr))
-            model_classifier.save_weights("./logs/model/rpn_{:.4f}.h5".format(loss_class_cls + loss_class_regr))
+            model_classifier.save_weights("./logs/model/cls_{:.4f}.h5".format(loss_class_cls + loss_class_regr))
 
             write_to_log(summary_writer,
                          step=e,
