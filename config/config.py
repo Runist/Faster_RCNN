@@ -9,7 +9,6 @@ rpn_lr_max = 1e-4
 rpn_lr_min = 1e-9
 cls_lr_max = 1e-5
 cls_lr_min = 1e-9
-lr = 1e-4
 
 epoch = 100
 

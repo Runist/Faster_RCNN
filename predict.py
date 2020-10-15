@@ -264,7 +264,7 @@ class FasterRCNN:
 
 
 if __name__ == '__main__':
-    img_path = r"D:\Python_Code\Tensorflow2.0\YOLOv3\VOCdevkit\VOC2012\JPEGImages\2007_002055.jpg"
+    img_path = r"D:\Python_Code\Dataset\VOCdevkit\VOC2012\JPEGImages\2008_000833.jpg"
     faster_rcnn = FasterRCNN()
 
     image = Image.open(img_path)

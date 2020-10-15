@@ -52,9 +52,10 @@ def lr_schedule(e, mode='normal'):
         return rpn_lr, cls_lr
     else:
         if e % 10 == 0 and e != 0:
-            cfg.lr /= 2
+            cfg.rpn_lr_max /= 2
+            cfg.cls_lr_max /= 2
 
-        return cfg.lr, cfg.lr
+        return cfg.rpn_lr_max, cfg.cls_lr_max
 
 
 def main():
@@ -211,7 +212,9 @@ def main():
                 best_loss = curr_loss
 
             print('Saving weights.\n')
-            model_all.save_weights("./logs/model/faster_rcnn_{:.4f}.h5".format(curr_loss))
+            model_all.save("./logs/model/faster_rcnn_{:.4f}.h5".format(curr_loss))
+            model_rpn.save_weights("./logs/model/rpn_{:.4f}.h5".format(loss_rpn_cls + loss_rpn_regr))
+            model_classifier.save_weights("./logs/model/rpn_{:.4f}.h5".format(loss_class_cls + loss_class_regr))
 
             write_to_log(summary_writer,
                          step=e,
