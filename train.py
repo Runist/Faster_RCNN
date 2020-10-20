@@ -165,8 +165,7 @@ def main():
             selected_samples = selected_pos_samples + selected_neg_samples
 
             # 训练分类器
-            loss_class = model_classifier.train_on_batch([image,
-                                                          x_roi[:, selected_samples, :]],
+            loss_class = model_classifier.train_on_batch([image, x_roi[:, selected_samples, :]],
                                                          [y_class_label[:, selected_samples, :], y_classifier[:, selected_samples, :]])
 
             losses[i, 0] = loss_rpn[1]

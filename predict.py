@@ -8,13 +8,12 @@ from nets import frcnn
 from nets.backbone.ResNet import ResNet50
 import config.config as cfg
 from core.anchorGenerate import get_anchors
-from core.boxParse import BoundingBox, get_img_output_length
+from core.boxParse import BoundingBox
 from core.dataReader import get_new_image_size
 
 import colorsys
 from PIL import Image, ImageFont, ImageDraw
 import numpy as np
-from tensorflow.keras.applications.imagenet_utils import preprocess_input
 from tensorflow.keras import Input, models
 import tensorflow as tf
 
@@ -261,6 +260,7 @@ class FasterRCNN:
             # 写上分类的文字
             draw.text(text_origin, str(label, 'UTF-8'), fill=(0, 0, 0), font=font)
             del draw
+
         return image
 
 
