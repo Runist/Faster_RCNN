@@ -219,10 +219,12 @@ class BoundingBox(object):
         将0-1的预测结果转换成在特征图上的长宽，并进行NMS处理
         :param predictions: rpn模型的预测
         :param confidence_threshold: 置信度阈值
-        :return:
+        :return: 经过NMS处理后rpn上的坐标
         """
         p_classification = predictions[0]       # 是背景还是物体
         p_regression = predictions[1]           # 共享特征层上的坐标
+
+        result = None
 
         # 对每一个图片进行处理，regression 第一个维度是batch size大小，需要遍历为所有共享特征层输出结果
         for i in range(p_regression.shape[0]):
@@ -244,7 +246,19 @@ class BoundingBox(object):
 
             # 取出在非极大抑制中效果较好的 框和得分
             good_boxes = tf.gather(boxes_to_process, nms_index).numpy()
-            # good_score = tf.gather(score_to_process, nms_index).numpy()
+            good_score = tf.gather(score_to_process, nms_index).numpy()
+            good_score = np.expand_dims(good_score, axis=1)
 
-        return good_boxes
+            pred = np.concatenate((good_score, good_boxes), axis=1)
+            if result is None:
+                result = pred
+            else:
+                result = np.concatenate((result, pred), axis=0)
+
+        if len(result) > 0:
+            result = np.array(result)
+            argsort = np.argsort(result[:, 0])[::-1]
+            result = result[argsort]
+
+        return result[1:]
 
