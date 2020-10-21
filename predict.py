@@ -99,6 +99,7 @@ class FasterRCNN:
 
         delete_line = []
         for i, r in enumerate(predict_boxes):
+            print(r)
             if r[2] < 1 or r[3] < 1:
                 delete_line.append(i)
 
@@ -112,6 +113,10 @@ class FasterRCNN:
             # 把predict_boxes分成多个(128，4）
             rois = predict_boxes[cfg.num_rois * i: cfg.num_rois * (i+1), :]
             rois = np.expand_dims(rois, axis=0)
+
+            if rois.shape[1] == 0:
+                print("Your model can't detect any bounding boxes.")
+                exit(0)
 
             # 把不够128框的部分，补足128个
             if i == predict_boxes.shape[0] // cfg.num_rois:
@@ -128,7 +133,7 @@ class FasterRCNN:
 
                 rois = rois_padded
 
-            [p_cls, p_regr] = self.model_classifier.predict([share_layer, rois])
+            p_cls, p_regr = self.model_classifier.predict([share_layer, rois])
 
             for j in range(p_cls.shape[1]):
                 # 如果这个框置信度都小于阈值，那就直接跳过了
@@ -265,7 +270,7 @@ class FasterRCNN:
 
 
 if __name__ == '__main__':
-    img_path = r"D:\Python_Code\Dataset\VOCdevkit\VOC2012\JPEGImages\2008_001708.jpg"
+    img_path = "Your picture path."
     faster_rcnn = FasterRCNN()
 
     image = Image.open(img_path)

@@ -225,36 +225,26 @@ class BoundingBox(object):
         p_regression = predictions[1]           # 共享特征层上的坐标
 
         # 对每一个图片进行处理，regression 第一个维度是batch size大小，需要遍历为所有共享特征层输出结果
-        # for i in range(p_regression.shape[0]):
+        for i in range(p_regression.shape[0]):
+            # 对张特征图上的regression进行bbox的解码
+            decode_bbox = self.decode_boxes(p_regression[i])
 
-        # 对张特征图上的regression进行bbox的解码
-        decode_bbox = self.decode_boxes(p_regression[0])
+            # 取出置信度数据
+            confidence = p_classification[i, :, 0]
+            # 大于 confidence_threshold 则认为有物体
+            mask = confidence > confidence_threshold
 
-        # 取出置信度数据
-        confidence = p_classification[0, :, 0]
-        # 大于 confidence_threshold 则认为有物体
-        mask = confidence > confidence_threshold
+            # 取出得分高于confidence_threshold的框
+            boxes_to_process = decode_bbox[mask]
+            score_to_process = confidence[mask]
 
-        # 取出得分高于confidence_threshold的框
-        boxes_to_process = decode_bbox[mask]
-        score_to_process = confidence[mask]
+            # 非极大抑制，去掉box重合程度高的那一些框，top_k是指最多可以通过nms获得多少个框
+            nms_index = tf.image.non_max_suppression(boxes_to_process, score_to_process, self.top_k,
+                                                     iou_threshold=self.nms_thresh)
 
-        # 非极大抑制，去掉box重合程度高的那一些框，top_k是指最多可以通过nms获得多少个框
-        nms_index = tf.image.non_max_suppression(boxes_to_process, score_to_process, self.top_k,
-                                                 iou_threshold=self.nms_thresh)
+            # 取出在非极大抑制中效果较好的 框和得分
+            good_boxes = tf.gather(boxes_to_process, nms_index).numpy()
+            # good_score = tf.gather(score_to_process, nms_index).numpy()
 
-        # 取出在非极大抑制中效果较好的 框和得分
-        good_boxes = tf.gather(boxes_to_process, nms_index).numpy()
-        good_score = tf.gather(score_to_process, nms_index).numpy()
-        good_score = np.expand_dims(good_score, axis=1)
+        return good_boxes
 
-        results = np.concatenate((good_score, good_boxes), axis=1)
-
-        if len(results) > 0:
-            # 按照置信度进行排序
-            results = np.array(results)
-            argsort = np.argsort(results[:, 0])[::-1]
-            results = results[argsort]
-
-        # 只返回坐标
-        return results[1:]
