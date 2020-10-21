@@ -99,7 +99,6 @@ class FasterRCNN:
 
         delete_line = []
         for i, r in enumerate(predict_boxes):
-            print(r)
             if r[2] < 1 or r[3] < 1:
                 delete_line.append(i)
 
