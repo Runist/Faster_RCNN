@@ -260,5 +260,5 @@ class BoundingBox(object):
             argsort = np.argsort(result[:, 0])[::-1]
             result = result[argsort]
 
-        return result[1:]
+        return result[:, 1:]
 
