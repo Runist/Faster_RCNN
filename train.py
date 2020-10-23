@@ -122,7 +122,7 @@ def main():
 
             # 将预测结果进行解码
             predict_boxes = box_parse.detection_out(predict_rpn, confidence_threshold=0)
-            height, width, _ = np.shape(image[0])
+            height, width = np.shape(image[0])[:2]
             x_roi, y_class_label, y_classifier = get_classifier_train_data(predict_boxes,
                                                                            bbox[0],
                                                                            width,
@@ -202,8 +202,6 @@ def main():
 
             print('Saving weights.\n')
             model_all.save_weights("./logs/model/faster_rcnn_{:.4f}.h5".format(curr_loss))
-            model_rpn.save_weights("./logs/model/rpn_{:.4f}.h5".format(loss_rpn_cls + loss_rpn_regr))
-            model_classifier.save_weights("./logs/model/cls_{:.4f}.h5".format(loss_class_cls + loss_class_regr))
 
             write_to_log(summary_writer,
                          step=e,

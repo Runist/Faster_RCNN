@@ -224,7 +224,7 @@ class BoundingBox(object):
         p_classification = predictions[0]       # 是背景还是物体
         p_regression = predictions[1]           # 共享特征层上的坐标
 
-        result = None
+        pred = []
 
         # 对每一个图片进行处理，regression 第一个维度是batch size大小，需要遍历为所有共享特征层输出结果
         for i in range(p_regression.shape[0]):
@@ -249,11 +249,9 @@ class BoundingBox(object):
             good_score = tf.gather(score_to_process, nms_index).numpy()
             good_score = np.expand_dims(good_score, axis=1)
 
-            pred = np.concatenate((good_score, good_boxes), axis=1)
-            if result is None:
-                result = pred
-            else:
-                result = np.concatenate((result, pred), axis=0)
+            pred.append(np.concatenate((good_score, good_boxes), axis=1))
+
+        result = np.concatenate(pred, axis=0)
 
         if len(result) > 0:
             result = np.array(result)

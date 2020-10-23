@@ -220,10 +220,10 @@ class DataReader:
         box_data = np.array(bbox, dtype='float32')
 
         # 将bbox的坐标变0-1
-        box_data[:, 0] = box_data[:, 0] / cfg.input_shape[1]
-        box_data[:, 1] = box_data[:, 1] / cfg.input_shape[0]
-        box_data[:, 2] = box_data[:, 2] / cfg.input_shape[1]
-        box_data[:, 3] = box_data[:, 3] / cfg.input_shape[0]
+        box_data[:, 0] = box_data[:, 0] / input_width
+        box_data[:, 1] = box_data[:, 1] / input_height
+        box_data[:, 2] = box_data[:, 2] / input_width
+        box_data[:, 3] = box_data[:, 3] / input_height
 
         return image, box_data
 
