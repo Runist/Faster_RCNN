@@ -69,8 +69,8 @@ class BoundingBox(object):
         # 找到每一个真实框，按照阈值标准筛选iou0.3~0.7的框，这些框是没用的，不参与到Loss计算
         assign_mask = (iou > self.min_threshold) & (iou < self.max_threshold)
 
-        # if not assign_mask.any():
-        #     assign_mask[iou.argmax()] = True
+        if not assign_mask.any():
+            assign_mask[iou.argmax()] = True
 
         # 至此assign_mask已经全是True or False的shape=（len(anchor),）的二维矩阵
         ignored_box[:, 0][assign_mask] = iou[assign_mask]
@@ -182,9 +182,10 @@ class BoundingBox(object):
         # arr便是我们要进行操作的数组了
         ignored_boxes = np.apply_along_axis(self.ignore_box, 1, boxes[:, :4])
         # 取重合程度最大的先验框，并且获取这个先验框的index
-        # ignored_boxes = ignored_boxes.reshape(-1, self.num_anchors, 1)
+        ignored_boxes = ignored_boxes.reshape(-1, self.num_anchors, 1)
         # 一张图片中多个框是分别计算iou的，但要把所有iou整合到一个anchors矩阵上，在0维度上比较最大值
-        ignore_iou = ignored_boxes.max(axis=0)
+        ignore_iou = ignored_boxes[:, :, 0].max(axis=0)
+
         ignore_iou_mask = ignore_iou > 0
 
         # 将需要忽略的先验框类别置为-1
@@ -192,6 +193,7 @@ class BoundingBox(object):
 
         # (n, num_anchors, 5) n代表这个图中有n个坐标，5则是前4个是转换后的坐标，最后一个是这个框的iou
         encoded_boxes = np.apply_along_axis(self.encode_box, 1, boxes[:, :4])
+        encoded_boxes = encoded_boxes.reshape(-1, self.num_anchors, 5)
 
         # 在同一个位置上，有可能会有多个物体的iou同时超过0.7
         # 由于apply_along_axis是在不同层上计算的，但最后只会输出一个先验框矩阵，
@@ -209,7 +211,7 @@ class BoundingBox(object):
         # best_iou_mask - 1维度上的索引
 
         # 将筛选出来的先验框坐标赋值到assignment，4为0代表为背景，为1代表是有物体
-        box_data[:, :4][best_iou_mask] = encoded_boxes[best_iou_idx, best_iou_mask, :4]
+        box_data[:, :4][best_iou_mask] = encoded_boxes[best_iou_idx, np.arange(len(best_iou_idx)), :4]
         box_data[:, 4][best_iou_mask] = 1
 
         return box_data

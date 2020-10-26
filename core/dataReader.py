@@ -10,6 +10,7 @@ import tensorflow as tf
 import numpy as np
 import config.config as cfg
 from PIL import Image
+import copy
 
 
 class DataReader:
@@ -229,8 +230,7 @@ class DataReader:
 
     def process_true_bbox(self, box_data):
         """
-        对真实框处理，首先会建立一个13x13，26x26，52x52的特征层，具体的shape是
-        [b, n, n, 3, 25]的特征层，也就意味着，一个特征层最多可以存放n^2个数据
+        对真实框进行处理，平衡正负样本
         :param box_data: 实际框的数据
         :return: 处理好后的 y_true
         """
@@ -408,7 +408,7 @@ def get_classifier_train_data(predict_boxes, true_boxes, img_w, img_h, num_class
         class_label[label] = 1
 
         # 将符合条件的预测框的分类信息存储在一个二维列表中
-        y_class_label.append(class_label)
+        y_class_label.append(copy.deepcopy(class_label))
 
         coords = [0.0] * 4 * (num_classes - 1)
         labels = [0.0] * 4 * (num_classes - 1)
@@ -420,11 +420,11 @@ def get_classifier_train_data(predict_boxes, true_boxes, img_w, img_h, num_class
             # 将回归参数×classifier_regr_std后存放到coords的对应位置上，将对应的labels四个位置全置1。
             coords[label_pos: 4+label_pos] = [sx * tx, sy * ty, sw * tw, sh * th]
             labels[label_pos: 4+label_pos] = [1, 1, 1, 1]
-            y_class_regr_coords.append(coords)
-            y_class_regr_label.append(labels)
+            y_class_regr_coords.append(copy.deepcopy(coords))
+            y_class_regr_label.append(copy.deepcopy(labels))
         else:
-            y_class_regr_coords.append(coords)
-            y_class_regr_label.append(labels)
+            y_class_regr_coords.append(copy.deepcopy(coords))
+            y_class_regr_label.append(copy.deepcopy(labels))
 
     # 如果x_roi为0，说明各个预测框与anchors的iou都很小，都是很简单的背景，则说明rpn没有训练好
     if len(x_roi) == 0:
