@@ -10,7 +10,6 @@ import tensorflow as tf
 import numpy as np
 import config.config as cfg
 from PIL import Image
-import copy
 
 
 class DataReader:
@@ -408,7 +407,7 @@ def get_classifier_train_data(predict_boxes, true_boxes, img_w, img_h, num_class
         class_label[label] = 1
 
         # 将符合条件的预测框的分类信息存储在一个二维列表中
-        y_class_label.append(copy.deepcopy(class_label))
+        y_class_label.append(class_label)
 
         coords = [0.0] * 4 * (num_classes - 1)
         labels = [0.0] * 4 * (num_classes - 1)
@@ -420,11 +419,11 @@ def get_classifier_train_data(predict_boxes, true_boxes, img_w, img_h, num_class
             # 将回归参数×classifier_regr_std后存放到coords的对应位置上，将对应的labels四个位置全置1。
             coords[label_pos: 4+label_pos] = [sx * tx, sy * ty, sw * tw, sh * th]
             labels[label_pos: 4+label_pos] = [1, 1, 1, 1]
-            y_class_regr_coords.append(copy.deepcopy(coords))
-            y_class_regr_label.append(copy.deepcopy(labels))
+            y_class_regr_coords.append(coords)
+            y_class_regr_label.append(labels)
         else:
-            y_class_regr_coords.append(copy.deepcopy(coords))
-            y_class_regr_label.append(copy.deepcopy(labels))
+            y_class_regr_coords.append(coords)
+            y_class_regr_label.append(labels)
 
     # 如果x_roi为0，说明各个预测框与anchors的iou都很小，都是很简单的背景，则说明rpn没有训练好
     if len(x_roi) == 0:
