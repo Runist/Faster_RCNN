@@ -211,7 +211,7 @@ class BoundingBox(object):
         # best_iou_mask - 1维度上的索引
 
         # 将筛选出来的先验框坐标赋值到assignment，4为0代表为背景，为1代表是有物体
-        box_data[:, :4][best_iou_mask] = encoded_boxes[best_iou_idx, np.arange(len(best_iou_idx)), :4]
+        box_data[:, :4][best_iou_mask] = encoded_boxes[best_iou_idx, best_iou_mask, :4]
         box_data[:, 4][best_iou_mask] = 1
 
         return box_data
