@@ -23,8 +23,6 @@ share_layer_shape = (round(input_shape[0] / rpn_stride), round(input_shape[1] / 
 
 num_rois = 128
 num_regions = 256
-valid_rate = 0
-shuffle_size = 1024
 
 rpn_min_overlap = 0.3
 rpn_max_overlap = 0.7

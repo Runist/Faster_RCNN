@@ -81,11 +81,9 @@ def main():
     # 根据先验框解析真实框
     box_parse = BoundingBox(anchors, max_threshold=cfg.rpn_max_overlap, min_threshold=cfg.rpn_min_overlap)
 
-    reader = DataReader(cfg.annotation_path, cfg.input_shape, cfg.batch_size, box_parse)
-    train = reader.read_data_and_split_data(cfg.valid_rate)
-    train_step = len(train)
-
-    train_dataset = iter(reader.make_datasets(train))
+    reader = DataReader(cfg.annotation_path, box_parse)
+    rpn_train = reader.generate()
+    train_step = len(reader.train_lines)
 
     # loss相关
     losses = np.zeros((train_step, 5))
@@ -112,12 +110,12 @@ def main():
         for i in range(train_step):
 
             # 读取数据
-            image, classification, regression, bbox = next(train_dataset)
+            image, rpn_y, bbox = next(rpn_train)
 
             # train_on_batch输出结果分成两种，一种只返回loss，第二种返回loss+metrcis，主要由model.compile决定
             # model_rpn单输出模型，且只有loss，没有metrics, 此时 return 为一个标量，代表这个 mini-batch 的 loss
             # 这里的loss_rpn返回一个列表，loss_rpn[0] = loss_rpn[1] + loss_rpn[2]
-            loss_rpn = model_rpn.train_on_batch(image, [classification, regression])
+            loss_rpn = model_rpn.train_on_batch(image, rpn_y)
             predict_rpn = model_rpn.predict_on_batch(image)
 
             # 将预测结果进行解码

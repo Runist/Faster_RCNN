@@ -133,15 +133,15 @@ class BasicResTDBlock(layers.Layer):
 
         self.conv1_td = layers.TimeDistributed(layers.Conv2D(filter1, kernel_size=1, strides=strides, use_bias=False,
                                                              kernel_initializer='he_normal'))
-        self.bn1_td = layers.TimeDistributed(layers.BatchNormalization())
+        self.bn1_td = layers.TimeDistributed(layers.BatchNormalization(axis=-1))
 
         self.conv2_td = layers.TimeDistributed(layers.Conv2D(filter2, kernel_size=3, strides=strides, use_bias=False, padding='same',
                                                              kernel_initializer='he_normal'))
-        self.bn2_td = layers.TimeDistributed(layers.BatchNormalization())
+        self.bn2_td = layers.TimeDistributed(layers.BatchNormalization(axis=-1))
 
         self.conv3_td = layers.TimeDistributed(layers.Conv2D(filter3, kernel_size=1, strides=strides, use_bias=False,
                                                              kernel_initializer='he_normal'))
-        self.bn3_td = layers.TimeDistributed(layers.BatchNormalization())
+        self.bn3_td = layers.TimeDistributed(layers.BatchNormalization(axis=-1))
 
         self.relu = layers.ReLU()
         self.add = layers.Add()
@@ -185,19 +185,19 @@ class BottleneckResTDBlock(layers.Layer):
 
         self.shortcut_td = layers.TimeDistributed(layers.Conv2D(filter3, kernel_size=1, strides=strides, use_bias=False,
                                                                 kernel_initializer='he_normal'))
-        self.shortcut_bn_td = layers.TimeDistributed(layers.BatchNormalization())
+        self.shortcut_bn_td = layers.TimeDistributed(layers.BatchNormalization(axis=-1))
 
         self.conv1_td = layers.TimeDistributed(layers.Conv2D(filter1, kernel_size=1, strides=strides, use_bias=False,
                                                              kernel_initializer='he_normal'))
-        self.bn1_td = layers.TimeDistributed(layers.BatchNormalization())
+        self.bn1_td = layers.TimeDistributed(layers.BatchNormalization(axis=-1))
 
         self.conv2_td = layers.TimeDistributed(layers.Conv2D(filter2, kernel_size=3, use_bias=False, padding='same',
                                                              kernel_initializer='he_normal'))
-        self.bn2_td = layers.TimeDistributed(layers.BatchNormalization())
+        self.bn2_td = layers.TimeDistributed(layers.BatchNormalization(axis=-1))
 
         self.conv3_td = layers.TimeDistributed(layers.Conv2D(filter3, kernel_size=1, use_bias=False,
                                                              kernel_initializer='he_normal'))
-        self.bn3_td = layers.TimeDistributed(layers.BatchNormalization())
+        self.bn3_td = layers.TimeDistributed(layers.BatchNormalization(axis=-1))
 
         self.relu = layers.ReLU()
         self.add = layers.Add()

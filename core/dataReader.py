@@ -10,214 +10,110 @@ import tensorflow as tf
 import numpy as np
 import config.config as cfg
 from PIL import Image
+import cv2 as cv
 
 
-class DataReader:
-    """
-    tf.data.Dataset高速读取数据，提高GPU利用率
-    """
-
-    def __init__(self, data_path, input_shape, batch_size, box_parse):
+class DataReader(object):
+    def __init__(self, data_path, box_parse, input_shape=cfg.input_shape):
         """
         :param data_path: 图片-标签 对应关系的txt文本路径
-        :param input_shape: 输入层的宽高信息
         :param box_parse: box解析类对象
-        :param max_boxes: 一张图最大检测预测框数量
+        :param input_shape: 输入层的宽高信息
         """
         self.data_path = data_path
-        self.input_shape = input_shape
-        self.batch_size = batch_size
-        self.num_regions = cfg.num_regions
         self.box_parse = box_parse
+        self.input_shape = input_shape
+        self.num_regions = cfg.num_regions
+        self.train_lines = self.read_data_and_split_data()
 
-    def read_data_and_split_data(self, valid_rate):
+    def read_data_and_split_data(self):
         """
         读取图片的路径信息，并按照比例分为训练集和测试集
-        :param valid_rate: 分割比例
         :return:
         """
         with open(self.data_path, "r") as f:
             files = f.readlines()
 
-        # valid_rate为0，全为训练集
-        if valid_rate == 0:
-            return files
+        return files
 
-        split = int(valid_rate * len(files))
-        train = files[split:]
-        valid = files[:split]
-
-        return train, valid
-
-    @staticmethod
-    def __rand(small=0., big=1.):
-        return np.random.rand() * (big - small) + small
-
-    def parse(self, annotation_line):
-        """
-        为tf.data.Dataset.map编写合适的解析函数，由于函数中某些操作不支持
-        python类型的操作，所以需要用py_function转换，定义的格式如下
-            Args:
-              @param annotation_line: 是一行数据（图片路径 + 预测框位置）
-        tf.py_function
-            Args:
-              第一个是要转换成tf格式的python函数，
-              第二个输入的参数，
-              第三个是输出的类型
-        """
-
-        if cfg.data_pretreatment == "random":
-            image, bbox = tf.py_function(self._get_random_data, [annotation_line], [tf.float32, tf.float32])
-        else:
-            image, bbox = tf.py_function(self._get_data, [annotation_line], [tf.float32, tf.float32])
-
-        # py_function没有解析List的返回值，所以要拆包 再合起来传出去
-        classification, regression = tf.py_function(self.process_true_bbox, [bbox], [tf.float32, tf.float32])
-
-        return image, classification, regression, bbox
-
-    def _get_data(self, annotation_line):
-        """
-        不对数据进行增强处理，只进行简单的尺度变换和填充处理
-        :param annotation_line: 一行数据
-        :return: image, box_data
-        """
-        line = str(annotation_line.numpy(), encoding="utf-8").split()
-        image_path = line[0]
-        bbox = np.array([np.array(list(map(int, box.split(',')))) for box in line[1:]])
-
-        image = tf.io.read_file(image_path)
-        image = tf.image.decode_jpeg(image, channels=3)
-
-        image_height, image_width = tf.shape(image)[:2]
-        input_height, input_width = self.input_shape
-
-        image_height_f = tf.cast(image_height, tf.float32)
-        image_width_f = tf.cast(image_width, tf.float32)
-        input_height_f = tf.cast(input_height, tf.float32)
-        input_width_f = tf.cast(input_width, tf.float32)
-
-        scale = min(input_width_f / image_width_f, input_height_f / image_height_f)
-        new_height = image_height_f * scale
-        new_width = image_width_f * scale
-
-        # 将图片按照固定长宽比进行缩放 空缺部分 padding
-        dx_f = (input_width - new_width) / 2
-        dy_f = (input_height - new_height) / 2
-        dx = tf.cast(dx_f, tf.int32)
-        dy = tf.cast(dy_f, tf.int32)
-
-        # 其实这一块不是双三次线性插值resize导致像素点放大255倍，原因是：无论是cv还是plt在面对浮点数时，仅解释0-1完整比例
-        image = tf.image.resize(image, [new_height, new_width], method=tf.image.ResizeMethod.BICUBIC)
-        new_image = tf.image.pad_to_bounding_box(image, dy, dx, input_height, input_width)
-
-        # 生成image.shape的大小的全1矩阵
-        image_ones = tf.ones_like(image)
-        image_ones_padded = tf.image.pad_to_bounding_box(image_ones, dy, dx, input_height, input_width)
-        # 做个运算，白色区域变成0，填充0的区域变成1，再* 128，然后加上原图，就完成填充灰色的操作
-        image = (1 - image_ones_padded) * 128 + new_image
-
-        # 将图片归一化到0和1之间
-        # image = (image - np.min(image)) / (np.max(image) - np.min(image))
-        # image = (image - np.mean(image)) / np.std(image)
-        image /= 255.
-        image = tf.clip_by_value(image, clip_value_min=0.0, clip_value_max=1.0)
-
-        # 为填充过后的图片，矫正bbox坐标，如果没有bbox需要检测annotation文件
-        if len(bbox) <= 0:
-            raise Exception("{} doesn't have any bounding boxes.".format(image_path))
-
-        # np.random.shuffle(bbox)
-        bbox[:, [0, 2]] = bbox[:, [0, 2]] * scale + dx_f
-        bbox[:, [1, 3]] = bbox[:, [1, 3]] * scale + dy_f
-        box_data = np.array(bbox, dtype='float32')
-
-        # 将bbox的坐标变0-1
-        box_data[:, 0] = box_data[:, 0] / cfg.input_shape[1]
-        box_data[:, 1] = box_data[:, 1] / cfg.input_shape[0]
-        box_data[:, 2] = box_data[:, 2] / cfg.input_shape[1]
-        box_data[:, 3] = box_data[:, 3] / cfg.input_shape[0]
-
-        return image, box_data
-
-    def _get_random_data(self, annotation_line):
+    def get_random_data(self, annotation_line, hue=.1, sat=1.5, val=1.5):
         """
         数据增强（改变长宽比例、大小、亮度、对比度、颜色饱和度）
         :param annotation_line: 一行数据
+        :param hue: 色调抖动
+        :param sat: 饱和度抖动
+        :param val: 明度抖动
         :return: image, box_data
         """
-        line = str(annotation_line.numpy(), encoding="utf-8").split()
-        image_path = line[0]
-        bbox = np.array([np.array(list(map(int, box.split(',')))) for box in line[1:]])
+        line = annotation_line.split()
+        image = Image.open(line[0])
 
-        image = tf.io.read_file(image_path)
-        image = tf.image.decode_jpeg(image, channels=3)
-
-        image_height, image_width = np.shape(image)[:2]
+        image_width, image_height = image.size
         input_width, input_height = self.input_shape
 
-        # 随机左右翻转50%
-        flip = self.__rand(0, 1) > 0.5
-        if flip:
-            image = tf.image.random_flip_left_right(image, seed=1)
-        # 改变亮度，max_delta必须是float且非负数
-        image = tf.image.random_brightness(image, 0.2)
-        # 对比度调节
-        image = tf.image.random_contrast(image, 0.3, 2.0)
-        # 色相调节
-        image = tf.image.random_hue(image, 0.15)
-        # 饱和度调节
-        image = tf.image.random_saturation(image, 0.3, 2.0)
+        box = np.array([np.array(list(map(int, box.split(',')))) for box in line[1:]])
 
-        # 对图像进行缩放并且进行长和宽的扭曲，改变图片的比例
-        image_ratio = self.__rand(0.7, 1.3)
         # 随机生成缩放比例，缩小或者放大
-        scale = self.__rand(0.5, 1.5)
+        scale = rand(0.5, 1.5)
+        # 随机变换长宽比例
+        new_ar = input_width / input_height * rand(0.7, 1.3)
 
-        # 50%的比例改变width, 50%比例改变height
-        if self.__rand(0, 1) > 0.5:
-            new_height = int(image_height * scale * image_ratio)
-            new_width = int(image_width * scale)
+        if new_ar < 1:
+            new_height = int(scale * input_height)
+            new_width = int(new_height * new_ar)
         else:
-            new_width = int(image_width * scale)
-            new_height = int(image_height * scale * image_ratio)
+            new_width = int(scale * input_width)
+            new_height = int(new_width / new_ar)
 
-        dx = self.__rand(0, (input_width - new_width))
-        dy = self.__rand(0, (input_height - new_height))
-
-        image = Image.fromarray(image.numpy())
         image = image.resize((new_width, new_height), Image.BICUBIC)
 
+        dx = rand(0, (input_width - new_width))
+        dy = rand(0, (input_height - new_height))
         new_image = Image.new('RGB', (input_width, input_height), (128, 128, 128))
         new_image.paste(image, (int(dx), int(dy)))
-        image = np.array(new_image, dtype=np.float32)
+        image = new_image
 
-        # 将图片归一化到0和1之间
-        # image = (image - np.min(image)) / (np.max(image) - np.min(image))
-        # image = (image - np.mean(image)) / np.std(image)
-        image /= 255.
-        image = tf.clip_by_value(image, clip_value_min=0.0, clip_value_max=1.0)
+        # 翻转图片
+        flip = rand() < .5
+        if flip:
+            image = image.transpose(Image.FLIP_LEFT_RIGHT)
 
-        # 为填充过后的图片，矫正bbox坐标，如果没有bbox需要检测annotation文件
-        if len(bbox) <= 0:
+        # 图像增强
+        hue = rand(-hue, hue)
+        sat = rand(1, sat) if rand() < .5 else 1 / rand(1, sat)
+        val = rand(1, val) if rand() < .5 else 1 / rand(1, val)
+        x = cv.cvtColor(np.array(image, np.float32)/255, cv.COLOR_RGB2HSV)
+        x[..., 0] += hue*360
+        x[..., 0][x[..., 0] > 1] -= 1
+        x[..., 0][x[..., 0] < 0] += 1
+        x[..., 1] *= sat
+        x[..., 2] *= val
+        x[x[:, :, 0] > 360, 0] = 360
+        x[:, :, 1:][x[:, :, 1:] > 1] = 1
+        x[x < 0] = 0
+        image = cv.cvtColor(x, cv.COLOR_HSV2RGB)*255
+
+        # 为填充过后的图片，矫正box坐标，如果没有box需要检测annotation文件
+        if len(box) <= 0:
             raise Exception("{} doesn't have any bounding boxes.".format(image_path))
 
-        bbox[:, [0, 2]] = bbox[:, [0, 2]] * new_width / image_width + dx
-        bbox[:, [1, 3]] = bbox[:, [1, 3]] * new_height / image_height + dy
+        box[:, [0, 2]] = box[:, [0, 2]] * new_width / image_width + dx
+        box[:, [1, 3]] = box[:, [1, 3]] * new_height / image_height + dy
+        # 若翻转了图像，框也需要翻转
         if flip:
-            bbox[:, [0, 2]] = new_width - bbox[:, [2, 0]] + 2*dx
+            box[:, [0, 2]] = input_width - box[:, [2, 0]]
 
         # 定义边界
-        bbox[:, 0:2][bbox[:, 0:2] < 0] = 0
-        bbox[:, 2][bbox[:, 2] > input_width] = input_width
-        bbox[:, 3][bbox[:, 3] > input_height] = input_height
+        box[:, 0:2][box[:, 0:2] < 0] = 0
+        box[:, 2][box[:, 2] > input_width] = input_width
+        box[:, 3][box[:, 3] > input_height] = input_height
 
         # 计算新的长宽
-        box_w = bbox[:, 2] - bbox[:, 0]
-        box_h = bbox[:, 3] - bbox[:, 1]
+        box_w = box[:, 2] - box[:, 0]
+        box_h = box[:, 3] - box[:, 1]
         # 去除无效数据
-        bbox = bbox[np.logical_and(box_w > 1, box_h > 1)]
-        box_data = np.array(bbox, dtype='float32')
+        box = box[np.logical_and(box_w > 1, box_h > 1)]
+        box_data = np.array(box, dtype='float32')
 
         # 将bbox的坐标变0-1
         box_data[:, 0] = box_data[:, 0] / input_width
@@ -227,72 +123,61 @@ class DataReader:
 
         return image, box_data
 
-    def process_true_bbox(self, box_data):
+    def generate(self):
         """
-        对真实框进行处理，平衡正负样本
-        :param box_data: 实际框的数据
-        :return: 处理好后的 y_true
+        数据生成器
+        :return: image, rpn训练标签， 真实框数据
         """
-        boxes = self.box_parse.assign_boxes(box_data)
+        while True:
+            np.random.shuffle(self.train_lines)
+            for annotation_line in self.train_lines:
+                image, box_data = self.get_random_data(annotation_line)
 
-        classification = boxes[:, 4]
-        regression = boxes[:, :]
+                if len(box_data) == 0:
+                    continue
 
-        mask_pos = classification[:] > 0
-        num_pos = len(classification[mask_pos])
+                # 计算真实框对应的先验框，与这个先验框应当有的预测结果
+                boxes = self.box_parse.assign_boxes(box_data)
 
-        if num_pos > self.num_regions / 2:
-            # 若正例超过128，则从多余的正例中随机采样置为-1
-            val_index = np.random.choice(np.where(mask_pos)[0].tolist(),
-                                         int(num_pos - self.num_regions / 2),
-                                         replace=False)
-            classification[val_index] = -1
-            regression[val_index, -1] = -1
+                classification = boxes[:, 4]
+                regression = boxes[:, :]
 
-        mask_neg = classification[:] == 0
-        num_neg = len(classification[mask_neg])
-        mask_pos = classification[:] > 0
-        num_pos = len(classification[mask_pos])
+                mask_pos = classification[:] > 0
+                num_pos = len(classification[mask_pos])
 
-        if num_neg + num_pos > self.num_regions:
-            # 若负例超过128，则把正例和负例降至256
-            val_index = np.random.choice(np.where(mask_neg)[0].tolist(),
-                                         int(num_neg + num_pos - self.num_regions),
-                                         replace=False)
+                if num_pos > self.num_regions / 2:
+                    # 若正例超过128，则从多余的正例中随机采样置为-1
+                    val_index = np.random.choice(np.where(mask_pos)[0].tolist(),
+                                                 int(num_pos - self.num_regions / 2),
+                                                 replace=False)
+                    classification[val_index] = -1
+                    regression[val_index, -1] = -1
 
-            classification[val_index] = -1
+                mask_neg = classification[:] == 0
+                num_neg = len(classification[mask_neg])
+                mask_pos = classification[:] > 0
+                num_pos = len(classification[mask_pos])
 
-        classification = np.reshape(classification, [-1, 1])
-        regression = np.reshape(regression, [-1, 5])
+                if num_neg + num_pos > self.num_regions:
+                    # 若负例超过128，则把正例和负例降至256
+                    val_index = np.random.choice(np.where(mask_neg)[0].tolist(),
+                                                 int(num_neg + num_pos - self.num_regions),
+                                                 replace=False)
 
-        return classification, regression
+                    classification[val_index] = -1
 
-    def make_datasets(self, annotation, mode="train"):
-        """
-        用tf.data的方式读取数据，以提高gpu使用率
-        :param annotation: 数据行[image_path, [x,y,w,h,class ...]]
-        :param mode: 训练集or验证集tf.data运行一次
-        :return: 数据集
-        """
-        # 这是GPU读取方式
-        dataset = tf.data.Dataset.from_tensor_slices(annotation)
-        if mode == "train":
-            # map的作用就是根据定义的 函数，对整个数据集都进行这样的操作
-            # 而不用自己写一个for循环，如：可以自己定义一个归一化操作，然后用.map方法都归一化
-            dataset = dataset.map(self.parse, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-            # 打乱数据，这里的shuffle的值越接近整个数据集的大小，越贴近概率分布
-            # 但是电脑往往没有这么大的内存，所以适量就好
-            dataset = dataset.repeat().batch(self.batch_size).shuffle(buffer_size=cfg.shuffle_size)
-            # prefetch解耦了 数据产生的时间 和 数据消耗的时间
-            # prefetch官方的说法是可以在gpu训练模型的同时提前预处理下一批数据
-            dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
-        else:
-            # 验证集数据不需要增强
-            cfg.data_pretreatment = 'normal'
-            dataset = dataset.map(self.parse, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-            dataset = dataset.repeat().batch(self.batch_size).prefetch(tf.data.experimental.AUTOTUNE)
+                classification = np.reshape(classification, [-1, 1])
+                regression = np.reshape(regression, [-1, 5])
 
-        return dataset
+                image /= 255
+                rpn_y = [np.expand_dims(np.array(classification, dtype=np.float32), 0),
+                         np.expand_dims(np.array(regression, dtype=np.float32), 0)]
+
+                yield np.expand_dims(image, 0), rpn_y, np.expand_dims(box_data, 0)
+
+
+def rand(small=0., big=1.):
+    return np.random.rand() * (big - small) + small
 
 
 def iou(box_a, box_b):
@@ -336,7 +221,7 @@ def get_classifier_train_data(predict_boxes, true_boxes, img_w, img_h, num_class
     :return: roi_pooling层的输入， label列表， 9种尺度的回归坐标和具体类别
     """
 
-    bboxes = true_boxes[:, :4].numpy()
+    bboxes = true_boxes[:, :4]
 
     gta = np.zeros((len(bboxes), 4))
     # 将原图下0-1范围的框 变换到在 共享特征层从（38，38）尺度下的框
