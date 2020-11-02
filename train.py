@@ -128,10 +128,10 @@ def main():
                                                                            cfg.num_classes)
 
             if x_roi is None:
-                progbar.add(cfg.batch_size, [('rpn_cls', np.mean(losses[:i+1, 0])),
-                                             ('rpn_regr', np.mean(losses[:i+1, 1])),
-                                             ('detector_cls', np.mean(losses[:i+1, 2])),
-                                             ('detector_regr', np.mean(losses[:i+1, 3]))])
+                progbar.update(i+1, [('rpn_cls', np.mean(losses[:i+1, 0])),
+                                     ('rpn_regr', np.mean(losses[:i+1, 1])),
+                                     ('detector_cls', np.mean(losses[:i+1, 2])),
+                                     ('detector_regr', np.mean(losses[:i+1, 3]))])
                 continue
 
             # 平衡classifier的数据正负样本
@@ -177,10 +177,10 @@ def main():
             losses[i, 4] = loss_class[3]
 
             # 输出训练过程
-            progbar.add(cfg.batch_size, [('rpn_cls', np.mean(losses[:i+1, 0])),
-                                         ('rpn_regr', np.mean(losses[:i+1, 1])),
-                                         ('detector_cls', np.mean(losses[:i+1, 2])),
-                                         ('detector_regr', np.mean(losses[:i+1, 3]))])
+            progbar.update(i+1, [('rpn_cls', np.mean(losses[:i+1, 0])),
+                                 ('rpn_regr', np.mean(losses[:i+1, 1])),
+                                 ('detector_cls', np.mean(losses[:i+1, 2])),
+                                 ('detector_regr', np.mean(losses[:i+1, 3]))])
 
         # 当一个epoch训练完了以后，输出训练指标
         else:

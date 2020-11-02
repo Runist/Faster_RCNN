@@ -21,15 +21,15 @@ class BasicResBlock(layers.Layer):
         super(BasicResBlock, self).__init__(**kwargs)
 
         self.conv1 = layers.Conv2D(filter1, kernel_size=1, strides=strides, use_bias=False,
-                                   kernel_initializer='he_normal')
+                                   kernel_initializer='glorot_uniform')
         self.bn1 = layers.BatchNormalization()
 
         self.conv2 = layers.Conv2D(filter2, kernel_size=3, strides=strides, use_bias=False, padding='same',
-                                   kernel_initializer='he_normal')
+                                   kernel_initializer='glorot_uniform')
         self.bn2 = layers.BatchNormalization()
 
         self.conv3 = layers.Conv2D(filter3, kernel_size=1, strides=strides, use_bias=False,
-                                   kernel_initializer='he_normal')
+                                   kernel_initializer='glorot_uniform')
         self.bn3 = layers.BatchNormalization()
 
         self.relu = layers.ReLU()
@@ -73,15 +73,15 @@ class BottleneckResBlock(layers.Layer):
         super(BottleneckResBlock, self).__init__(**kwargs)
 
         self.shortcut = layers.Conv2D(filter3, kernel_size=1, strides=strides, use_bias=False,
-                                      kernel_initializer='he_normal')
+                                      kernel_initializer='glorot_uniform')
         self.shortcut_bn = layers.BatchNormalization()
 
         self.conv1 = layers.Conv2D(filter1, kernel_size=1, strides=strides, use_bias=False,
-                                   kernel_initializer='he_normal')
+                                   kernel_initializer='glorot_uniform')
         self.bn1 = layers.BatchNormalization()
 
         self.conv2 = layers.Conv2D(filter2, kernel_size=3, use_bias=False, padding='same',
-                                   kernel_initializer='he_normal')
+                                   kernel_initializer='glorot_uniform')
         self.bn2 = layers.BatchNormalization()
 
         self.conv3 = layers.Conv2D(filter3, kernel_size=1, use_bias=False)
@@ -132,15 +132,15 @@ class BasicResTDBlock(layers.Layer):
         super(BasicResTDBlock, self).__init__(**kwargs)
 
         self.conv1_td = layers.TimeDistributed(layers.Conv2D(filter1, kernel_size=1, strides=strides, use_bias=False,
-                                                             kernel_initializer='he_normal'))
+                                                             kernel_initializer='glorot_uniform'))
         self.bn1_td = layers.TimeDistributed(layers.BatchNormalization(axis=-1))
 
         self.conv2_td = layers.TimeDistributed(layers.Conv2D(filter2, kernel_size=3, strides=strides, use_bias=False, padding='same',
-                                                             kernel_initializer='he_normal'))
+                                                             kernel_initializer='glorot_uniform'))
         self.bn2_td = layers.TimeDistributed(layers.BatchNormalization(axis=-1))
 
         self.conv3_td = layers.TimeDistributed(layers.Conv2D(filter3, kernel_size=1, strides=strides, use_bias=False,
-                                                             kernel_initializer='he_normal'))
+                                                             kernel_initializer='glorot_uniform'))
         self.bn3_td = layers.TimeDistributed(layers.BatchNormalization(axis=-1))
 
         self.relu = layers.ReLU()
@@ -184,19 +184,19 @@ class BottleneckResTDBlock(layers.Layer):
         super(BottleneckResTDBlock, self).__init__(**kwargs)
 
         self.shortcut_td = layers.TimeDistributed(layers.Conv2D(filter3, kernel_size=1, strides=strides, use_bias=False,
-                                                                kernel_initializer='he_normal'))
+                                                                kernel_initializer='glorot_uniform'))
         self.shortcut_bn_td = layers.TimeDistributed(layers.BatchNormalization(axis=-1))
 
         self.conv1_td = layers.TimeDistributed(layers.Conv2D(filter1, kernel_size=1, strides=strides, use_bias=False,
-                                                             kernel_initializer='he_normal'))
+                                                             kernel_initializer='glorot_uniform'))
         self.bn1_td = layers.TimeDistributed(layers.BatchNormalization(axis=-1))
 
         self.conv2_td = layers.TimeDistributed(layers.Conv2D(filter2, kernel_size=3, use_bias=False, padding='same',
-                                                             kernel_initializer='he_normal'))
+                                                             kernel_initializer='glorot_uniform'))
         self.bn2_td = layers.TimeDistributed(layers.BatchNormalization(axis=-1))
 
         self.conv3_td = layers.TimeDistributed(layers.Conv2D(filter3, kernel_size=1, use_bias=False,
-                                                             kernel_initializer='he_normal'))
+                                                             kernel_initializer='glorot_uniform'))
         self.bn3_td = layers.TimeDistributed(layers.BatchNormalization(axis=-1))
 
         self.relu = layers.ReLU()
@@ -258,7 +258,7 @@ def ResNet50(input_image):
 
     # (606, 606, 3)
     x = layers.Conv2D(filters=64, kernel_size=7, strides=2, name='conv1',
-                      use_bias=False, kernel_initializer='he_normal')(x)
+                      use_bias=False, kernel_initializer='glorot_uniform')(x)
     x = layers.BatchNormalization(momentum=0.9, epsilon=1e-5, name="conv1/BatchNorm")(x)
     x = layers.ReLU()(x)
 
