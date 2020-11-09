@@ -316,7 +316,8 @@ def get_classifier_train_data(predict_boxes, true_boxes, img_w, img_h, num_class
 
     x_roi = np.array(x_roi)
     y_class_label = np.array(y_class_label)
-    y_classifier = np.concatenate([np.array(y_class_regr_label), np.array(y_class_regr_coords)], axis=1)
+    y_classifier = np.concatenate([np.array(y_class_regr_label, dtype=np.float32),
+                                   np.array(y_class_regr_coords, dtype=np.float32)], axis=1)
 
     return np.expand_dims(x_roi, axis=0), np.expand_dims(y_class_label, axis=0), np.expand_dims(y_classifier, axis=0)
 

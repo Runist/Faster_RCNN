@@ -21,44 +21,79 @@ import numpy as np
 import os
 
 
-def write_to_log(summary_writer, step, **kwargs):
-    """
-    写入训练日志，
-    :param summary_writer: summary对象
-    :param step: 训练步数
-    :param kwargs: 以字典形式传入
-    :return:
-    """
-    with summary_writer.as_default():
-        for key, value in kwargs.items():
-            tf.summary.scalar(key, value, step=step)
+class CosineAnnealSchedule(optimizers.schedules.LearningRateSchedule):
+    def __init__(self, epoch, lr_max, lr_min, warm_epoch, train_step):
+        """
+        学习率调节函数
+        :param epoch: 训练轮次
+        :param lr_max: 最大学习率
+        :param lr_min: 最小学习率
+        :param warm_epoch: 预热轮次
+        :param train_step: 一轮训练次数
+        """
+        super(CosineAnnealSchedule, self).__init__()
 
+        self.train_step = train_step
+        self.warm_epoch = warm_epoch
+        self.epoch = epoch
+        self.lr_max = lr_max
+        self.lr_min = lr_min
 
-def lr_schedule(e, mode='normal'):
-    """
-    学习率调整
-    :param e: 当前训练的epoch
-    :param mode: normal为每十个epoch学习率减半，cosine_anneal为余弦退火调整
-    :return: rpn_lr, cls_lr
-    """
-    if mode == 'cosine_anneal':
-        # 余弦退火调整学习率
-        if e <= 4:
-            rpn_lr = cfg.rpn_lr_max / 4 * e
-            cls_lr = cfg.cls_lr_max / 4 * e
+    @tf.function
+    def __call__(self, step):
+        e = step // self.train_step + 1
+        if e <= self.warm_epoch:
+            lr = self.lr_max / self.warm_epoch * e
         else:
-            rpn_lr = cfg.rpn_lr_max + 0.5 * (cfg.rpn_lr_max - cfg.rpn_lr_min) * (1 + np.cos(e / cfg.epoch * np.pi))
-            cls_lr = cfg.cls_lr_max + 0.5 * (cfg.cls_lr_max - cfg.rpn_lr_min) * (1 + np.cos(e / cfg.epoch * np.pi))
-        return rpn_lr, cls_lr
-    else:
-        if e % 10 == 0 and e != 0:
-            cfg.rpn_lr_max /= 2
-            cfg.cls_lr_max /= 2
+            lr = self.lr_min + 0.5 * (self.lr_max - self.lr_min) * (1 + tf.cos(e / self.epoch * tf.constant(np.pi)))
 
-        return cfg.rpn_lr_max, cfg.cls_lr_max
+        return lr
+
+
+@tf.function
+def rpn_train(model, inputs, y_true):
+    """
+    eager训练模式，需要将loss函数和优化器作为全局变量
+    :param model: rpn model
+    :param inputs: 模型输入
+    :param y_true: 真实标签
+    :return: rpn的loss
+    """
+    with tf.GradientTape() as tape:
+        y_pred = model(inputs)
+        cls_loss = losses_fn.rpn_cls_loss()(y_true[0], y_pred[0])
+        regr_loss = losses_fn.rpn_regr_loss()(y_true[1], y_pred[1])
+
+    grads = tape.gradient([cls_loss, regr_loss], model.trainable_variables)
+    rpn_optimizer.apply_gradients(zip(grads, model.trainable_variables))
+
+    return [cls_loss, regr_loss]
+
+
+@tf.function
+def classifier_train(model, inputs, y_true):
+    """
+    eager训练模式，需要将loss函数和优化器作为全局变量
+    :param model: classifier model
+    :param inputs: 模型输入
+    :param y_true: 真实标签
+    :return: 分类器loss
+    """
+    with tf.GradientTape() as tape:
+        y_pred = model(inputs)
+        cls_loss = losses_fn.class_loss_cls(y_true[0], y_pred[0])
+        regr_loss = losses_fn.class_loss_regr(cfg.num_classes - 1)(y_true[1], y_pred[1])
+
+    grads = tape.gradient([cls_loss, regr_loss], model.trainable_variables)
+    classifier_optimizer.apply_gradients(zip(grads, model.trainable_variables))
+
+    return [cls_loss, regr_loss]
 
 
 def main():
+    global rpn_optimizer, classifier_optimizer
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
     gpus = tf.config.experimental.list_physical_devices("GPU")
     if gpus:
         for gpu in gpus:
@@ -82,41 +117,32 @@ def main():
     box_parse = BoundingBox(anchors, max_threshold=cfg.rpn_max_overlap, min_threshold=cfg.rpn_min_overlap)
 
     reader = DataReader(cfg.annotation_path, box_parse)
-    rpn_train = reader.generate()
+    train_data = reader.generate()
     train_step = len(reader.train_lines)
 
     # loss相关
-    losses = np.zeros((train_step, 5))
+    losses = np.zeros((train_step, 4))
     best_loss = np.Inf
 
-    # 创建summary
-    summary_writer = tf.summary.create_file_writer(logdir=cfg.summary_path)
+    rpn_lr = CosineAnnealSchedule(cfg.epoch, cfg.rpn_lr_max, cfg.rpn_lr_min, 4, train_step)
+    cls_lr = CosineAnnealSchedule(cfg.epoch, cfg.cls_lr_max, cfg.cls_lr_min, 4, train_step)
 
-    for e in range(1, cfg.epoch + 1):
-        rpn_lr, cls_lr = lr_schedule(e, mode='cosine_anneal')
-        print("Learning rate adjustment, rpn_lr: {}, cls_lr: {}".format(rpn_lr, cls_lr))
+    rpn_optimizer = optimizers.Adam(rpn_lr)
+    classifier_optimizer = optimizers.Adam(cls_lr)
 
-        model_rpn.compile(optimizer=optimizers.Adam(rpn_lr),
-                          loss={'regression': losses_fn.rpn_regr_loss(),
-                                'classification': losses_fn.rpn_cls_loss()})
-
-        model_classifier.compile(optimizer=optimizers.Adam(cls_lr),
-                                 loss=[losses_fn.class_loss_cls, losses_fn.class_loss_regr(cfg.num_classes - 1)],
-                                 metrics={'dense_class_{}'.format(cfg.num_classes): 'accuracy'})
+    for e in range(cfg.epoch):
+        print("Learning rate adjustment, rpn_lr: {}, cls_lr: {}".
+              format(rpn_optimizer._decayed_lr("float32").numpy(),
+                     classifier_optimizer._decayed_lr("float32").numpy()))
 
         # keras可视化训练条
         progbar = utils.Progbar(train_step)
-        print('Epoch {}/{}'.format(e, cfg.epoch))
+        print('Epoch {}/{}'.format(e+1, cfg.epoch))
         for i in range(train_step):
-
             # 读取数据
-            image, rpn_y, bbox = next(rpn_train)
-
-            # train_on_batch输出结果分成两种，一种只返回loss，第二种返回loss+metrcis，主要由model.compile决定
-            # model_rpn单输出模型，且只有loss，没有metrics, 此时 return 为一个标量，代表这个 mini-batch 的 loss
-            # 这里的loss_rpn返回一个列表，loss_rpn[0] = loss_rpn[1] + loss_rpn[2]
-            loss_rpn = model_rpn.train_on_batch(image, rpn_y)
-            predict_rpn = model_rpn.predict_on_batch(image)
+            image, rpn_y, bbox = next(train_data)
+            loss_rpn = rpn_train(model_rpn, image, rpn_y)
+            predict_rpn = model_rpn(image)
 
             # 将预测结果进行解码
             predict_boxes = box_parse.detection_out(predict_rpn, confidence_threshold=0)
@@ -166,15 +192,14 @@ def main():
 
             selected_samples = selected_pos_samples + selected_neg_samples
 
-            # 训练分类器
-            loss_class = model_classifier.train_on_batch([image, x_roi[:, selected_samples, :]],
-                                                         [y_class_label[:, selected_samples, :], y_classifier[:, selected_samples, :]])
+            loss_class = classifier_train(model_classifier,
+                                          [image, x_roi[:, selected_samples, :]],
+                                          [y_class_label[:, selected_samples, :], y_classifier[:, selected_samples, :]])
 
-            losses[i, 0] = loss_rpn[1]
-            losses[i, 1] = loss_rpn[2]
-            losses[i, 2] = loss_class[1]
-            losses[i, 3] = loss_class[2]
-            losses[i, 4] = loss_class[3]
+            losses[i, 0] = loss_rpn[0].numpy()
+            losses[i, 1] = loss_rpn[1].numpy()
+            losses[i, 2] = loss_class[0].numpy()
+            losses[i, 3] = loss_class[1].numpy()
 
             # 输出训练过程
             progbar.update(i+1, [('rpn_cls', np.mean(losses[:i+1, 0])),
@@ -188,12 +213,10 @@ def main():
             loss_rpn_regr = np.mean(losses[:, 1])
             loss_class_cls = np.mean(losses[:, 2])
             loss_class_regr = np.mean(losses[:, 3])
-            class_acc = np.mean(losses[:, 4])
 
             curr_loss = loss_rpn_cls + loss_rpn_regr + loss_class_cls + loss_class_regr
 
-            print('\nClassifier accuracy for bounding boxes from RPN: {:.4f}'.format(class_acc))
-            print('Loss RPN classifier: {:.4f}'.format(loss_rpn_cls))
+            print('\nLoss RPN classifier: {:.4f}'.format(loss_rpn_cls))
             print('Loss RPN regression: {:.4f}'.format(loss_rpn_regr))
             print('Loss Detector classifier: {:.4f}'.format(loss_class_cls))
             print('Loss Detector regression: {:.4f}'.format(loss_class_regr))
@@ -203,16 +226,10 @@ def main():
                 best_loss = curr_loss
 
             print('Saving weights.\n')
-            model_all.save_weights("./logs/model/faster_rcnn_{:.4f}.h5".format(curr_loss))
-
-            write_to_log(summary_writer,
-                         step=e,
-                         mean_class_acc=class_acc,
-                         mean_loss_rpn_cls=loss_rpn_cls,
-                         mean_loss_rpn_regr=loss_rpn_regr,
-                         mean_loss_class_cls=loss_class_cls,
-                         mean_loss_class_regr=loss_class_regr)
+            model_all.save_weights("../logs/model/faster_rcnn_{:.4f}.h5".format(curr_loss))
 
 
 if __name__ == '__main__':
+    rpn_optimizer = None
+    classifier_optimizer = None
     main()
