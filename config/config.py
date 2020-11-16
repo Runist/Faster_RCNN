@@ -33,8 +33,6 @@ classifier_regr_std = [8.0, 8.0, 4.0, 4.0]
 data_pretreatment = 'random'
 
 annotation_path = "./config/train.txt"
-weight_path = './logs/model/faster_rcnn.h5'
-summary_path = './logs/summary/'
 label = ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow', 'diningtable', 'dog',
          'horse', 'motorbike', 'person', 'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor']
 

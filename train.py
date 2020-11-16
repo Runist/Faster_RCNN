@@ -22,30 +22,29 @@ import os
 
 
 class CosineAnnealSchedule(optimizers.schedules.LearningRateSchedule):
-    def __init__(self, epoch, lr_max, lr_min, warm_epoch, train_step):
+    def __init__(self, epoch, train_step, lr_max, lr_min, warmth_rate=0.2):
         """
         学习率调节函数
         :param epoch: 训练轮次
+        :param train_step: 一轮训练次数
         :param lr_max: 最大学习率
         :param lr_min: 最小学习率
-        :param warm_epoch: 预热轮次
-        :param train_step: 一轮训练次数
+        :param warmth_rate: 预热轮次的占比
         """
         super(CosineAnnealSchedule, self).__init__()
 
-        self.train_step = train_step
-        self.warm_epoch = warm_epoch
-        self.epoch = epoch
+        self.total_step = epoch * train_step
+        self.warm_step = self.total_step * warmth_rate
         self.lr_max = lr_max
         self.lr_min = lr_min
 
     @tf.function
     def __call__(self, step):
-        e = step // self.train_step + 1
-        if e <= self.warm_epoch:
-            lr = self.lr_max / self.warm_epoch * e
+        if step < self.warm_step:
+            lr_max = self.lr_min + 0.5 * (self.lr_max - self.lr_min) * (1.0 + tf.cos(self.warm_step / self.total_step * np.pi))
+            lr = lr_max / self.warm_step * (step+1)
         else:
-            lr = self.lr_min + 0.5 * (self.lr_max - self.lr_min) * (1 + tf.cos(e / self.epoch * tf.constant(np.pi)))
+            lr = self.lr_min + 0.5 * (self.lr_max - self.lr_min) * (1.0 + tf.cos(step / self.total_step * np.pi))
 
         return lr
 
@@ -124,8 +123,8 @@ def main():
     losses = np.zeros((train_step, 4))
     best_loss = np.Inf
 
-    rpn_lr = CosineAnnealSchedule(cfg.epoch, cfg.rpn_lr_max, cfg.rpn_lr_min, 4, train_step)
-    cls_lr = CosineAnnealSchedule(cfg.epoch, cfg.cls_lr_max, cfg.cls_lr_min, 4, train_step)
+    rpn_lr = CosineAnnealSchedule(cfg.epoch, train_step, cfg.rpn_lr_max, cfg.rpn_lr_min)
+    cls_lr = CosineAnnealSchedule(cfg.epoch, train_step, cfg.cls_lr_max, cfg.cls_lr_min)
 
     rpn_optimizer = optimizers.Adam(rpn_lr)
     classifier_optimizer = optimizers.Adam(cls_lr)
@@ -226,7 +225,7 @@ def main():
                 best_loss = curr_loss
 
             print('Saving weights.\n')
-            model_all.save_weights("../logs/model/faster_rcnn_{:.4f}.h5".format(curr_loss))
+            model_all.save_weights("./logs/model/voc_{:.4f}.h5".format(curr_loss))
 
 
 if __name__ == '__main__':

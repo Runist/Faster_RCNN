@@ -31,7 +31,7 @@ class DataReader(object):
         读取图片的路径信息，并按照比例分为训练集和测试集
         :return:
         """
-        with open(self.data_path, "r") as f:
+        with open(self.data_path, "r", encoding='utf-8') as f:
             files = f.readlines()
 
         return files
