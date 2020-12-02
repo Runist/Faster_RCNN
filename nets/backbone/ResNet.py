@@ -241,7 +241,7 @@ def make_layer(filters, num, name, strides=2):
     :return:
     """
     layer_list = [BottleneckResBlock(filters, strides=strides)]
-    for _ in range(1, num):
+    for _ in range(num):
         layer_list.append(BasicResBlock(filters))
 
     return models.Sequential(layer_list, name=name)
@@ -266,13 +266,13 @@ def ResNet50(input_image):
     x = layers.MaxPool2D(pool_size=3, strides=2, padding='SAME')(x)
 
     # (150, 150, 64)
-    x = make_layer([64, 64, 256], 3, 'conv_2x', strides=1)(x)
+    x = make_layer([64, 64, 256], 2, 'conv_2x', strides=1)(x)
 
     # (150, 150, 256)
-    x = make_layer([128, 128, 512], 4, 'conv_3x', strides=2)(x)
+    x = make_layer([128, 128, 512], 3, 'conv_3x', strides=2)(x)
 
     # (75, 75, 512)
-    feature_map = make_layer([256, 256, 1024], 6, 'conv_4x', strides=2)(x)
+    feature_map = make_layer([256, 256, 1024], 5, 'conv_4x', strides=2)(x)
 
     # (38, 38, 512)
     return feature_map
