@@ -53,7 +53,7 @@ def classifier(share_layer, input_rois, num_rois, nb_classes=21):
     out_roi_pool = RoiPooling(pooling_size, num_rois)([share_layer, input_rois])
 
     out = classifier_layers(out_roi_pool)
-    out = layers.TimeDistributed(layers.Flatten())(out)
+    out = layers.TimeDistributed(layers.Flatten(), name="flatten")(out)
 
     out_class = layers.TimeDistributed(layers.Dense(nb_classes,
                                                     activation='softmax',

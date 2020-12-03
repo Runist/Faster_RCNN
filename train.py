@@ -98,8 +98,8 @@ def main():
         for gpu in gpus:
             tf.config.experimental.set_memory_growth(gpu, True)
 
-    img_input = Input(shape=(None, None, 3))
-    roi_input = Input(shape=(None, 4))
+    img_input = Input(shape=(None, None, 3), name="img_input")
+    roi_input = Input(shape=(None, 4), name="roi_input")
 
     share_layer = ResNet50(img_input)
     rpn = frcnn.rpn(share_layer, num_anchors=len(cfg.anchor_box_ratios) * len(cfg.anchor_box_scales))

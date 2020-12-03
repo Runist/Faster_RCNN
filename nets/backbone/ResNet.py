@@ -260,7 +260,7 @@ def ResNet50(input_image):
     x = layers.Conv2D(filters=64, kernel_size=7, strides=2, name='conv1',
                       use_bias=False, kernel_initializer='he_normal')(x)
     x = layers.BatchNormalization(momentum=0.9, epsilon=1e-5, name="conv1/BatchNorm")(x)
-    x = layers.ReLU()(x)
+    x = layers.ReLU(name="activation")(x)
 
     # (300, 300, 64)
     x = layers.MaxPool2D(pool_size=3, strides=2, padding='SAME')(x)
@@ -287,9 +287,9 @@ def classifier_layers(x):
     :param x: 输入Tensor
     :return:
     """
-    x = BottleneckResTDBlock([512, 512, 2048], strides=2)(x)
-    x = BasicResTDBlock([512, 512, 2048])(x)
-    x = BasicResTDBlock([512, 512, 2048])(x)
+    x = BottleneckResTDBlock([512, 512, 2048], strides=2, name="td_conv_5x")(x)
+    x = BasicResTDBlock([512, 512, 2048], name="td_conv_6x")(x)
+    x = BasicResTDBlock([512, 512, 2048], name="td_conv_7x")(x)
     x = layers.TimeDistributed(layers.AveragePooling2D((7, 7)), name='avg_pool')(x)
 
     return x
