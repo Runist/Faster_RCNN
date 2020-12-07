@@ -37,6 +37,7 @@ class Frcnn(FasterRCNN):
         anchors = get_anchors(share_layer_shape=(rpn_width, rpn_height), image_shape=(new_w, new_h))
         box_parse = BoundingBox(anchors)
         predict_boxes = box_parse.detection_out(predict_rpn, confidence_threshold=0)
+        predict_boxes = predict_boxes[0]
 
         predict_boxes[:, 0] = np.array(np.round(predict_boxes[:, 0]*new_w/cfg.rpn_stride), dtype=np.int32)
         predict_boxes[:, 1] = np.array(np.round(predict_boxes[:, 1]*new_h/cfg.rpn_stride), dtype=np.int32)
@@ -184,7 +185,14 @@ class Frcnn(FasterRCNN):
 
 
 if __name__ == '__main__':
-    frcnn = Frcnn("../logs/model/faster_rcnn_1.9573.h5")
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
+    gpus = tf.config.experimental.list_physical_devices("GPU")
+    if gpus:
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+
+    frcnn = Frcnn("../config/frcnn.h5")
 
     image_infos = open("../config/test.txt").read().strip().split('\n')
 
