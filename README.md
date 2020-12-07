@@ -22,7 +22,7 @@ $ pip install -r requirements.txt
 3. Download VOC weights.
 
 ```
-$ wget https://github.com/Runist/YOLOv3/releases/download/v1.0/voc_weight.h5
+$ wget https://github.com/Runist/Faster_RCNN/releases/download/v1.0/voc_weights.h5
 ```
 
 ## 2. Train your dataset.
