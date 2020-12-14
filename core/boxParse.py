@@ -251,14 +251,10 @@ class BoundingBox(object):
             good_score = tf.gather(score_to_process, nms_index).numpy()
             good_score = np.expand_dims(good_score, axis=1)
 
-            pred.append(np.concatenate((good_score, good_boxes), axis=1))
+            predict_boxes = np.concatenate((good_score, good_boxes), axis=1)
+            argsort = np.argsort(predict_boxes[:, 0])[::-1]
+            predict_boxes = predict_boxes[argsort]
 
-        result = np.concatenate(pred, axis=0)
+            pred.append(predict_boxes[:, 1:])
 
-        if len(result) > 0:
-            result = np.array(result)
-            argsort = np.argsort(result[:, 0])[::-1]
-            result = result[argsort]
-
-        return result[:, 1:]
-
+        return pred

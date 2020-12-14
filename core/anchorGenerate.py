@@ -9,11 +9,6 @@ import numpy as np
 import config.config as cfg
 
 
-anchor_box_scales = [128, 256, 512]
-anchor_box_ratios = [[1, 1], [1, 2], [2, 1]]
-rpn_stride = 16
-
-
 def generate_anchors(sizes=None, ratios=None):
     """
     生成先验框的9种尺寸

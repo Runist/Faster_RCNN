@@ -65,7 +65,7 @@ class RoiPooling(layers.Layer):
         # 用concat合并所有截取图像
         final_output = backend.concatenate(outputs, axis=0)
         final_output = backend.reshape(final_output,
-                                       (1, self.num_rois, self.pool_size, self.pool_size, self.channels))
+                                       (-1, self.num_rois, self.pool_size, self.pool_size, self.channels))
 
         final_output = backend.permute_dimensions(final_output, (0, 1, 2, 3, 4))
 

@@ -16,6 +16,7 @@ from PIL import Image, ImageFont, ImageDraw
 import numpy as np
 from tensorflow.keras import Input, models
 import tensorflow as tf
+from keras.applications.imagenet_utils import preprocess_input
 
 
 class FasterRCNN:
@@ -57,8 +58,6 @@ class FasterRCNN:
 
         # 插值变换、填充图片
         image = image.resize((new_w, new_h), Image.BICUBIC)
-        # new_image = Image.new('RGB', (w, h), (128, 128, 128))
-        # new_image.paste(image, ((w - new_w) // 2, (h - new_h) // 2))
 
         # 归一化
         image_data = np.array(image, dtype=np.float32)
@@ -89,6 +88,7 @@ class FasterRCNN:
         anchors = get_anchors(share_layer_shape=(rpn_width, rpn_height), image_shape=(new_w, new_h))
         box_parse = BoundingBox(anchors)
         predict_boxes = box_parse.detection_out(predict_rpn, confidence_threshold=0)
+        predict_boxes = predict_boxes[0]
 
         predict_boxes[:, 0] = np.array(np.round(predict_boxes[:, 0]*new_w/cfg.rpn_stride), dtype=np.int32)
         predict_boxes[:, 1] = np.array(np.round(predict_boxes[:, 1]*new_h/cfg.rpn_stride), dtype=np.int32)
@@ -247,11 +247,11 @@ class FasterRCNN:
 
             # 画框框、写上分类
             label = '{} {:.2f}'.format(predicted_class, score)
+            print(label)
             draw = ImageDraw.Draw(image)
             # 获取文字框的大小
             label_size = draw.textsize(label, font)
             label = label.encode('utf-8')
-            print(label)
 
             # 如果文字框位置 小于 0，就在画面外边，这时候需要画在框上。在里面，就画在框上面
             if top - label_size[1] >= 0:
@@ -270,8 +270,8 @@ class FasterRCNN:
 
 
 if __name__ == '__main__':
-    img_path = r"Your image path."
-    faster_rcnn = FasterRCNN("./logs/model/voc_weights.h5")
+    img_path = "Your picture path."
+    faster_rcnn = FasterRCNN("./logs/model/voc.h5")
 
     image = Image.open(img_path)
     image = faster_rcnn.detect_image(image)

@@ -41,10 +41,11 @@ class CosineAnnealSchedule(optimizers.schedules.LearningRateSchedule):
     @tf.function
     def __call__(self, step):
         if step < self.warm_step:
-            lr_max = self.lr_min + 0.5 * (self.lr_max - self.lr_min) * (1.0 + tf.cos(self.warm_step / self.total_step * np.pi))
-            lr = lr_max / self.warm_step * (step+1)
+            lr = self.lr_max / self.warm_step * step
         else:
-            lr = self.lr_min + 0.5 * (self.lr_max - self.lr_min) * (1.0 + tf.cos(step / self.total_step * np.pi))
+            lr = self.lr_min + 0.5 * (self.lr_max - self.lr_min) * (
+                    1.0 + tf.cos((step - self.warm_step) / self.total_step * np.pi)
+            )
 
         return lr
 
@@ -98,8 +99,8 @@ def main():
         for gpu in gpus:
             tf.config.experimental.set_memory_growth(gpu, True)
 
-    img_input = Input(shape=(None, None, 3), name="img_input")
-    roi_input = Input(shape=(None, 4), name="roi_input")
+    img_input = Input(shape=(None, None, 3))
+    roi_input = Input(shape=(None, 4))
 
     share_layer = ResNet50(img_input)
     rpn = frcnn.rpn(share_layer, num_anchors=len(cfg.anchor_box_ratios) * len(cfg.anchor_box_scales))
@@ -115,9 +116,9 @@ def main():
     # 根据先验框解析真实框
     box_parse = BoundingBox(anchors, max_threshold=cfg.rpn_max_overlap, min_threshold=cfg.rpn_min_overlap)
 
-    reader = DataReader(cfg.annotation_path, box_parse)
+    reader = DataReader(cfg.annotation_path, box_parse, cfg.batch_size)
     train_data = reader.generate()
-    train_step = len(reader.train_lines)
+    train_step = len(reader.train_lines) // cfg.batch_size
 
     # loss相关
     losses = np.zeros((train_step, 4))
@@ -130,6 +131,7 @@ def main():
     classifier_optimizer = optimizers.Adam(cls_lr)
 
     for e in range(cfg.epoch):
+        invalid_data = 0        # 记录无效roi数据
         print("Learning rate adjustment, rpn_lr: {}, cls_lr: {}".
               format(rpn_optimizer._decayed_lr("float32").numpy(),
                      classifier_optimizer._decayed_lr("float32").numpy()))
@@ -142,58 +144,27 @@ def main():
             image, rpn_y, bbox = next(train_data)
             loss_rpn = rpn_train(model_rpn, image, rpn_y)
             predict_rpn = model_rpn(image)
-
             # 将预测结果进行解码
             predict_boxes = box_parse.detection_out(predict_rpn, confidence_threshold=0)
             height, width = np.shape(image[0])[:2]
-            x_roi, y_class_label, y_classifier = get_classifier_train_data(predict_boxes,
-                                                                           bbox[0],
-                                                                           width,
-                                                                           height,
-                                                                           cfg.num_classes)
+            x_roi, y_class_label, y_classifier, valid_roi = get_classifier_train_data(predict_boxes,
+                                                                                      bbox,
+                                                                                      width,
+                                                                                      height,
+                                                                                      cfg.batch_size,
+                                                                                      cfg.num_classes)
 
-            if x_roi is None:
+            invalid_data += (cfg.batch_size - len(valid_roi))
+            if len(x_roi) == 0:
                 progbar.update(i+1, [('rpn_cls', np.mean(losses[:i+1, 0])),
                                      ('rpn_regr', np.mean(losses[:i+1, 1])),
                                      ('detector_cls', np.mean(losses[:i+1, 2])),
                                      ('detector_regr', np.mean(losses[:i+1, 3]))])
                 continue
 
-            # 平衡classifier的数据正负样本
-            neg_samples = np.where(y_class_label[0, :, -1] == 1)
-            pos_samples = np.where(y_class_label[0, :, -1] == 0)
-
-            if len(neg_samples) > 0:
-                neg_samples = neg_samples[0]
-            else:
-                neg_samples = []
-
-            if len(pos_samples) > 0:
-                pos_samples = pos_samples[0]
-            else:
-                pos_samples = []
-
-            if len(neg_samples) == 0:
-                continue
-
-            # 平衡正样本数量
-            if len(pos_samples) < cfg.num_rois // 2:
-                selected_pos_samples = pos_samples.tolist()
-            else:
-                # replace选取后是否放回
-                selected_pos_samples = np.random.choice(pos_samples, cfg.num_rois//2, replace=False).tolist()
-
-            # 平衡负样本数量
-            if len(neg_samples) >= cfg.num_rois - len(selected_pos_samples):
-                selected_neg_samples = np.random.choice(neg_samples, cfg.num_rois - len(selected_pos_samples), replace=False).tolist()
-            else:
-                selected_neg_samples = np.random.choice(neg_samples, cfg.num_rois - len(selected_pos_samples), replace=True).tolist()
-
-            selected_samples = selected_pos_samples + selected_neg_samples
-
             loss_class = classifier_train(model_classifier,
-                                          [image, x_roi[:, selected_samples, :]],
-                                          [y_class_label[:, selected_samples, :], y_classifier[:, selected_samples, :]])
+                                          [image[valid_roi], x_roi],
+                                          [y_class_label, y_classifier])
 
             losses[i, 0] = loss_rpn[0].numpy()
             losses[i, 1] = loss_rpn[1].numpy()
@@ -219,6 +190,7 @@ def main():
             print('Loss RPN regression: {:.4f}'.format(loss_rpn_regr))
             print('Loss Detector classifier: {:.4f}'.format(loss_class_cls))
             print('Loss Detector regression: {:.4f}'.format(loss_class_regr))
+            print("{} picture can't detect any roi.".format(invalid_data))
 
             print('The best loss is {:.4f}. The current loss is {:.4f}.'.format(best_loss, curr_loss))
             if curr_loss < best_loss:

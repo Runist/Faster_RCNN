@@ -5,7 +5,7 @@
 # @Software: PyCharm
 # @Brief: ResNet 的 backbone
 
-from tensorflow.keras import layers, models, applications, initializers
+from tensorflow.keras import layers, models
 
 
 class BasicResBlock(layers.Layer):

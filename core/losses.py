@@ -133,4 +133,4 @@ def class_loss_cls(y_true, y_pred):
     :param y_pred: 预测值 [batch_size, num_rois, 4+1]
     :return: classifier class_loss
     """
-    return backend.mean(losses.categorical_crossentropy(y_true[0, :, :], y_pred[0, :, :]))
+    return backend.mean(losses.categorical_crossentropy(y_true, y_pred))
