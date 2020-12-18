@@ -111,17 +111,22 @@ def class_loss_regr(num_classes):
         :param y_pred: 预测值 [batch_size, num_rois, num_classes * 4]
         :return: classifier regr_loss
         """
-        x = y_true[:, :, 4 * num_classes:] - y_pred                             # 取出y_true后一半的数据，与y_pred做差值
-        x_abs = backend.abs(x)                                                  # 计算绝对值
-        x_bool = backend.cast(backend.less_equal(x_abs, 1.0), 'float32')        # 小于1的值
+        regr_loss = 0
+        batch_size = len(y_true)
+        for i in range(batch_size):
+            x = y_true[i, :, 4 * num_classes:] - y_pred[i, :, :]                    # 取出y_true后一半的数据，与y_pred做差值
+            x_abs = backend.abs(x)                                                  # 计算绝对值
+            x_bool = backend.cast(backend.less_equal(x_abs, 1.0), 'float32')        # 小于1的值
 
-        # 1、差值绝对值小于1时0.5 * X^2，大于1的绝对值减0.5然后相加
-        # 2、在乘上是否要计算这个loss
-        # 3、求和在除以个数，得均值
-        loss = 4 * backend.sum(
-            y_true[:, :, :4 * num_classes] * (x_bool * (0.5 * x * x) + (1 - x_bool) * (x_abs - 0.5))) / backend.sum(
-            epsilon + y_true[:, :, :4 * num_classes])
-        return loss
+            # 1、差值绝对值小于1时0.5 * X^2，大于1的绝对值减0.5然后相加
+            # 2、在乘上是否要计算这个loss
+            # 3、求和在除以个数，得均值
+            loss = 4 * backend.sum(
+                y_true[i, :, :4 * num_classes] * (x_bool * (0.5 * x * x) + (1 - x_bool) * (x_abs - 0.5))) / backend.sum(
+                epsilon + y_true[i, :, :4 * num_classes])
+            regr_loss += loss
+
+        return regr_loss / backend.constant(batch_size)
 
     return class_loss_regr_fixed_num
 

@@ -143,9 +143,15 @@ class DataReader(object):
             if i == 0:
                 np.random.shuffle(self.train_lines)
 
-            for _ in range(self.batch_size):
+            j = 0
+            while j < self.batch_size:
                 image, bbox = self.get_random_data(self.train_lines[i])
+                i = (i + 1) % n
 
+                if len(bbox) == 0:
+                    continue
+
+                j += 1
                 # 计算真实框对应的先验框，与这个先验框应当有的预测结果
                 boxes = self.box_parse.assign_boxes(bbox)
 
@@ -186,10 +192,7 @@ class DataReader(object):
                 classification_data.append(classification)
                 regression_data.append(regression)
 
-                i = (i + 1) % n
-
             image_data = np.array(image_data)
-
             classification_data = np.array(classification_data, dtype=np.float32)
             regression_data = np.array(regression_data, dtype=np.float32)
 
