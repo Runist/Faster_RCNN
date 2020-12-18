@@ -60,7 +60,7 @@ def rpn_train(model, inputs, y_true):
     :return: rpn的loss
     """
     with tf.GradientTape() as tape:
-        y_pred = model(inputs, training=False)
+        y_pred = model(inputs, training=True)
         cls_loss = losses_fn.rpn_cls_loss()(y_true[0], y_pred[0])
         regr_loss = losses_fn.rpn_regr_loss()(y_true[1], y_pred[1])
 
@@ -80,7 +80,7 @@ def classifier_train(model, inputs, y_true):
     :return: 分类器loss
     """
     with tf.GradientTape() as tape:
-        y_pred = model(inputs, training=False)
+        y_pred = model(inputs, training=True)
         cls_loss = losses_fn.class_loss_cls(y_true[0], y_pred[0])
         regr_loss = losses_fn.class_loss_regr(cfg.num_classes - 1)(y_true[1], y_pred[1])
 
