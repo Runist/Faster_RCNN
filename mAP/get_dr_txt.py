@@ -13,6 +13,7 @@ import tensorflow as tf
 from core.anchorGenerate import get_anchors
 from core.boxParse import BoundingBox
 import numpy as np
+from tqdm import tqdm
 
 
 class Frcnn(FasterRCNN):
@@ -192,7 +193,7 @@ if __name__ == '__main__':
         for gpu in gpus:
             tf.config.experimental.set_memory_growth(gpu, True)
 
-    frcnn = Frcnn("../config/frcnn.h5")
+    frcnn = Frcnn("../logs/model/voc_1.7687.h5")
 
     image_infos = open("../config/test.txt").read().strip().split('\n')
 
@@ -203,8 +204,9 @@ if __name__ == '__main__':
     if not os.path.exists("./input/images-optional"):
         os.makedirs("./input/images-optional")
 
-    for image_info in image_infos:
-        image_boxes = image_info.split(' ')
+    process_bar = tqdm(range(len(image_infos)), ncols=100, unit="step")
+    for i in process_bar:
+        image_boxes = image_infos[i].split(' ')
         image_path = image_boxes[0]
         image_id = os.path.basename(image_path)[:-4]
 
@@ -213,6 +215,5 @@ if __name__ == '__main__':
         # 开启后在之后计算mAP可以可视化
         # image.save("./input/images-optional/"+image_id+".jpg")
         frcnn.detect_single_image(image, image_id)
-        print(image_id, " done!")
 
     print("Conversion completed!")

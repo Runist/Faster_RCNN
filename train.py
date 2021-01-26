@@ -162,9 +162,23 @@ def main():
                                      ('detector_regr', np.mean(losses[:i+1, 3]))])
                 continue
 
-            loss_class = classifier_train(model_classifier,
-                                          [image[valid_roi], x_roi],
-                                          [y_class_label, y_classifier])
+            # loss_class = classifier_train(model_classifier,
+            #                               [image[valid_roi], x_roi],
+            #                               [y_class_label, y_classifier])
+
+            # 多batch计算时的一个bug，未解决
+            loss_class = [0, 0]
+            for j in range(len(valid_roi)):
+                loss = classifier_train(model_classifier,
+                                        [np.expand_dims(image[valid_roi[j]], axis=0),
+                                         np.expand_dims(x_roi[j], axis=0)],
+                                        [np.expand_dims(y_class_label[j], axis=0),
+                                         np.expand_dims(y_classifier[j], axis=0)])
+                loss_class[0] += loss[0]
+                loss_class[1] += loss[1]
+
+            loss_class[0] /= len(valid_roi)
+            loss_class[1] /= len(valid_roi)
 
             losses[i, 0] = loss_rpn[0].numpy()
             losses[i, 1] = loss_rpn[1].numpy()
