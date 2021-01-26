@@ -211,7 +211,7 @@ def main():
                 best_loss = curr_loss
 
             print('Saving weights.\n')
-            model_all.save_weights("./logs/model/voc_{:.4f}.h5".format(curr_loss))
+            model_all.save_weights("./model/frcnn_{:.4f}.h5".format(curr_loss))
 
 
 if __name__ == '__main__':
