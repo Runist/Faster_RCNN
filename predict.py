@@ -16,7 +16,6 @@ from PIL import Image, ImageFont, ImageDraw
 import numpy as np
 from tensorflow.keras import Input, models
 import tensorflow as tf
-from keras.applications.imagenet_utils import preprocess_input
 
 
 class FasterRCNN:
@@ -37,7 +36,7 @@ class FasterRCNN:
         share_layer_input = Input(shape=(None, None, 1024))
 
         share_layer = ResNet50(img_input)
-        rpn = frcnn.rpn(share_layer, num_anchors=len(cfg.anchor_box_ratios) * len(cfg.anchor_box_scales), is_train=False)
+        rpn = frcnn.rpn(share_layer, num_anchors=len(cfg.anchor_box_ratios) * len(cfg.anchor_box_scales))
         classifier = frcnn.classifier(share_layer_input, roi_input, cfg.num_rois, nb_classes=cfg.num_classes)
 
         self.model_rpn = models.Model(img_input, rpn)
@@ -64,7 +63,6 @@ class FasterRCNN:
         image_data /= 255.
         image_data = np.clip(image_data, 0.0, 1.0)
         image_data = np.expand_dims(image_data, 0)  # 增加batch的维度
-        # image_data = preprocess_input(image_data)
 
         return image_data
 
@@ -78,16 +76,15 @@ class FasterRCNN:
         old_w, old_h = image.size
         # 计算特征层下的宽度、高度
         new_h, new_w = np.shape(resize_image)[1:-1]
-        # 计算图片输入到rpn的输出shape，[-1]是因为rpn的输出list，最后一个是共享特征层
-        rpn_height, rpn_width = self.model_rpn.compute_output_shape((1, new_h, new_w, 3))[-1][1:-1]
-
         predict_rpn = self.model_rpn.predict(resize_image)
 
         share_layer = predict_rpn[2]
+        # 计算图片输入到rpn的输出shape，[-1]是因为rpn的输出list，最后一个是共享特征层
+        rpn_height, rpn_width = share_layer.shape[1:-1]
 
         anchors = get_anchors(share_layer_shape=(rpn_width, rpn_height), image_shape=(new_w, new_h))
         box_parse = BoundingBox(anchors)
-        predict_boxes = box_parse.detection_out(predict_rpn, confidence_threshold=0)
+        predict_boxes = box_parse.detection_out(predict_rpn, anchors, confidence_threshold=0)
         predict_boxes = predict_boxes[0]
 
         predict_boxes[:, 0] = np.array(np.round(predict_boxes[:, 0]*new_w/cfg.rpn_stride), dtype=np.int32)
@@ -270,8 +267,9 @@ class FasterRCNN:
 
 
 if __name__ == '__main__':
-    img_path = "Your picture path."
-    faster_rcnn = FasterRCNN("./logs/model/voc.h5")
+    # img_path = r"D:\Python_Code\Dataset\VOCdevkit\VOC2012\JPEGImages\2011_002381.jpg"
+    img_path = "street.jpg"
+    faster_rcnn = FasterRCNN("./logs/model/voc_1.8821.h5")
 
     image = Image.open(img_path)
     image = faster_rcnn.detect_image(image)

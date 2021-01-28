@@ -124,8 +124,8 @@ def main():
     losses = np.zeros((train_step, 4))
     best_loss = np.Inf
 
-    rpn_lr = CosineAnnealSchedule(cfg.epoch, train_step, cfg.rpn_lr_max, cfg.rpn_lr_min)
-    cls_lr = CosineAnnealSchedule(cfg.epoch, train_step, cfg.cls_lr_max, cfg.cls_lr_min)
+    rpn_lr = CosineAnnealSchedule(cfg.epoch, train_step, cfg.rpn_lr, cfg.rpn_lr * 1e-4)
+    cls_lr = CosineAnnealSchedule(cfg.epoch, train_step, cfg.cls_lr, cfg.cls_lr * 1e-4)
 
     rpn_optimizer = optimizers.Adam(rpn_lr)
     classifier_optimizer = optimizers.Adam(cls_lr)
@@ -142,15 +142,23 @@ def main():
         for i in range(train_step):
             # 读取数据
             image, rpn_y, bbox = next(train_data)
+
             loss_rpn = rpn_train(model_rpn, image, rpn_y)
             predict_rpn = model_rpn(image)
+
+            img_h, img_w = np.shape(image[0])[:2]
+            # 计算图片输入到rpn的输出shape
+            share_layer = predict_rpn[2]
+            rpn_height, rpn_width = share_layer.shape[1:-1]
+
             # 将预测结果进行解码
-            predict_boxes = box_parse.detection_out(predict_rpn, confidence_threshold=0)
-            height, width = np.shape(image[0])[:2]
+            anchors = get_anchors(share_layer_shape=(rpn_width, rpn_height), image_shape=(img_w, img_h))
+            predict_boxes = box_parse.detection_out(predict_rpn, anchors, confidence_threshold=0)
+
             x_roi, y_class_label, y_classifier, valid_roi = get_classifier_train_data(predict_boxes,
                                                                                       bbox,
-                                                                                      width,
-                                                                                      height,
+                                                                                      img_w,
+                                                                                      img_h,
                                                                                       cfg.batch_size,
                                                                                       cfg.num_classes)
 

@@ -10,7 +10,7 @@ from core.anchorGenerate import get_anchors
 
 
 class BoundingBox(object):
-    def __init__(self, anchors=None, max_threshold=0.7, min_threshold=0.3, nms_thresh=0.7, top_k=300):
+    def __init__(self, anchors, max_threshold=0.7, min_threshold=0.3, nms_thresh=0.7, top_k=300):
         """
         预测框、先验框解析
         :param anchors: 先验框对象，如果没有，就直接按照特征层shape为38x38生成
@@ -20,8 +20,6 @@ class BoundingBox(object):
         :param top_k: 前300个
         """
         self.anchors = anchors
-        if anchors is None:
-            self.anchors = get_anchors(cfg.share_layer_shape, cfg.input_shape)
         self.num_anchors = 0 if anchors is None else len(anchors)
         self.max_threshold = max_threshold
         self.min_threshold = min_threshold
@@ -117,19 +115,20 @@ class BoundingBox(object):
 
         return encoded_box
 
-    def decode_boxes(self, predictions):
+    def decode_boxes(self, predictions, anchors):
         """
         对预测框进行解码，相当于encode_box的逆操作
         :param predictions: regression, shape=(12996, 4)
+        :param anchors: 先验框对象
         :return: 解码后的boxes矩阵, shape=(12996, 4)
         """
         # 获得先验框的宽与高
-        anchors_width = self.anchors[:, 2] - self.anchors[:, 0]
-        anchors_height = self.anchors[:, 3] - self.anchors[:, 1]
+        anchors_width = anchors[:, 2] - anchors[:, 0]
+        anchors_height = anchors[:, 3] - anchors[:, 1]
 
         # 获得先验框的中心点
-        anchors_center_x = 0.5 * (self.anchors[:, 2] + self.anchors[:, 0])
-        anchors_center_y = 0.5 * (self.anchors[:, 3] + self.anchors[:, 1])
+        anchors_center_x = 0.5 * (anchors[:, 2] + anchors[:, 0])
+        anchors_center_y = 0.5 * (anchors[:, 3] + anchors[:, 1])
 
         # 计算预测框离先验框中心的偏移量——平移量（因为编码的时候乘*4，现在除掉）
         decode_bbox_center_x = predictions[:, 0] * anchors_width / 4
@@ -216,10 +215,11 @@ class BoundingBox(object):
 
         return box_data
 
-    def detection_out(self, predictions, confidence_threshold=0.5):
+    def detection_out(self, predictions, anchors, confidence_threshold=0.5):
         """
         将0-1的预测结果转换成在特征图上的长宽，并进行NMS处理
         :param predictions: rpn模型的预测
+        :param anchors: 先验框对象
         :param confidence_threshold: 置信度阈值
         :return: 经过NMS处理后rpn上的坐标
         """
@@ -231,7 +231,7 @@ class BoundingBox(object):
         # 对每一个图片进行处理，regression 第一个维度是batch size大小，需要遍历为所有共享特征层输出结果
         for i in range(p_regression.shape[0]):
             # 对张特征图上的regression进行bbox的解码
-            decode_bbox = self.decode_boxes(p_regression[i])
+            decode_bbox = self.decode_boxes(p_regression[i], anchors)
 
             # 取出置信度数据
             confidence = p_classification[i, :, 0]

@@ -11,7 +11,7 @@ from tensorflow.keras import layers
 from nets.RoiPooling import RoiPooling
 
 
-def rpn(share_layer, num_anchors=9, is_train=True):
+def rpn(share_layer, num_anchors=9):
     """
     RPN网络
     :param share_layer: 经过backbone-ResNet(可更换)处理的特征层
@@ -34,8 +34,6 @@ def rpn(share_layer, num_anchors=9, is_train=True):
     x_class = layers.Reshape((-1, 1), name="classification")(x_class)
     x_regr = layers.Reshape((-1, 4), name="regression")(x_regr)
 
-    if is_train:
-        return [x_class, x_regr]
     return [x_class, x_regr, share_layer]
 
 
