@@ -16,7 +16,6 @@ def rpn(share_layer, num_anchors=9):
     RPN网络
     :param share_layer: 经过backbone-ResNet(可更换)处理的特征层
     :param num_anchors: 特征层上每个格点上的anchor数量
-    :param is_train: 是否是训练
     :return: 两个特征层
         一个用于输出置信度，内部是否包含物体，通道数为k(二元交叉熵)或2k(交叉熵)
         第二个用于输出预测框的坐标，通道数为4k
