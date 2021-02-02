@@ -193,7 +193,7 @@ if __name__ == '__main__':
         for gpu in gpus:
             tf.config.experimental.set_memory_growth(gpu, True)
 
-    frcnn = Frcnn("../logs/model/voc_1.7687.h5")
+    frcnn = Frcnn("../model/voc_1.7687.h5")
 
     image_infos = open("../config/test.txt").read().strip().split('\n')
 

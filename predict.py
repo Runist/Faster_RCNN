@@ -270,7 +270,7 @@ class FasterRCNN:
 if __name__ == '__main__':
     # img_path = r"D:\Python_Code\Dataset\VOCdevkit\VOC2012\JPEGImages\2011_002381.jpg"
     img_path = "street.jpg"
-    faster_rcnn = FasterRCNN("./logs/model/frcnn_1.8062.h5")
+    faster_rcnn = FasterRCNN("./model/frcnn_1.8062.h5")
 
     image = Image.open(img_path)
     image = faster_rcnn.detect_image(image)
