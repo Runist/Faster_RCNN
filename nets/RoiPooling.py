@@ -36,34 +36,37 @@ class RoiPooling(layers.Layer):
 
         assert(len(inputs) == 2)
 
-        # 共享特征层
-        feature_map = inputs[0]
+        # 检测到有候选框的图片
+        img = inputs[0]
         # 经过网络处理的候选框
         rois = inputs[1]
 
         outputs = []
 
-        # 遍历每一个候选框（一般每次输入32个）
-        for roi_idx in range(self.num_rois):
+        if img.shape[0]:
+            # 遍历所有batch
+            for b in range(img.shape[0]):
+                # 遍历每一个候选框（一般每次输入128个）
+                for roi_idx in range(self.num_rois):
 
-            # 将坐标从输入中取出来
-            x = rois[0, roi_idx, 0]
-            y = rois[0, roi_idx, 1]
-            w = rois[0, roi_idx, 2]
-            h = rois[0, roi_idx, 3]
+                    # 将坐标从输入中取出来
+                    x = rois[b, roi_idx, 0]
+                    y = rois[b, roi_idx, 1]
+                    w = rois[b, roi_idx, 2]
+                    h = rois[b, roi_idx, 3]
 
-            x = backend.cast(x, 'int32')
-            y = backend.cast(y, 'int32')
-            w = backend.cast(w, 'int32')
-            h = backend.cast(h, 'int32')
+                    x = backend.cast(x, 'int32')
+                    y = backend.cast(y, 'int32')
+                    w = backend.cast(w, 'int32')
+                    h = backend.cast(h, 'int32')
 
-            # 将输入的特征层看作是图像，截取候选框区域的图像，然后resize成 pool_size * pool_size的大小
-            rs = tf.image.resize(feature_map[:, y:y+h, x:x+w, :], (self.pool_size, self.pool_size))
-            # 将所有截取到的图像保存至一个列表
-            outputs.append(rs)
+                    # 将输入的特征层看作是图像，截取候选框区域的图像，然后resize成 pool_size * pool_size的大小
+                    rs = tf.image.resize(img[b, y:y+h, x:x+w, :], (self.pool_size, self.pool_size))
+                    # 将所有截取到的图像保存至一个列表
+                    outputs.append(rs)
 
         # 用concat合并所有截取图像
-        final_output = backend.concatenate(outputs, axis=0)
+        final_output = backend.stack(outputs, axis=0)
         final_output = backend.reshape(final_output,
                                        (-1, self.num_rois, self.pool_size, self.pool_size, self.channels))
 

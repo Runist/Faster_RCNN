@@ -31,13 +31,13 @@ class Frcnn(FasterRCNN):
         # 计算图片输入到rpn的输出shape，[-1]是因为rpn的输出list，最后一个是共享特征层
         rpn_height, rpn_width = self.model_rpn.compute_output_shape((1, new_h, new_w, 3))[-1][1:-1]
 
-        predict_rpn = self.model_rpn.predict(resize_image)
+        predict_rpn = self.model_rpn(resize_image, training=False)
 
         share_layer = predict_rpn[2]
 
         anchors = get_anchors(share_layer_shape=(rpn_width, rpn_height), image_shape=(new_w, new_h))
         box_parse = BoundingBox(anchors)
-        predict_boxes = box_parse.detection_out(predict_rpn, confidence_threshold=0)
+        predict_boxes = box_parse.detection_out(predict_rpn, anchors,  confidence_threshold=0)
         predict_boxes = predict_boxes[0]
 
         predict_boxes[:, 0] = np.array(np.round(predict_boxes[:, 0]*new_w/cfg.rpn_stride), dtype=np.int32)
@@ -83,7 +83,7 @@ class Frcnn(FasterRCNN):
 
                 rois = rois_padded
 
-            p_cls, p_regr = self.model_classifier.predict([share_layer, rois])
+            p_cls, p_regr = self.model_classifier([share_layer, rois], training=False)
 
             for j in range(p_cls.shape[1]):
                 # 如果这个框置信度都小于阈值，那就直接跳过了
@@ -119,10 +119,10 @@ class Frcnn(FasterRCNN):
                 x2 = cx1 + w1 / 2.0
                 y2 = cy1 + h1 / 2.0
 
-                x1 = int(round(x1))
-                y1 = int(round(y1))
-                x2 = int(round(x2))
-                y2 = int(round(y2))
+                x1 = int(tf.round(x1))
+                y1 = int(tf.round(y1))
+                x2 = int(tf.round(x2))
+                y2 = int(tf.round(y2))
 
                 boxes.append([x1, y1, x2, y2])
                 probs.append(conf)

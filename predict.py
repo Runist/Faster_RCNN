@@ -76,7 +76,7 @@ class FasterRCNN:
         old_w, old_h = image.size
         # 计算特征层下的宽度、高度
         new_h, new_w = np.shape(resize_image)[1:-1]
-        predict_rpn = self.model_rpn.predict(resize_image)
+        predict_rpn = self.model_rpn(resize_image, training=False)
 
         share_layer = predict_rpn[2]
         # 计算图片输入到rpn的输出shape，[-1]是因为rpn的输出list，最后一个是共享特征层
@@ -130,7 +130,8 @@ class FasterRCNN:
 
                 rois = rois_padded
 
-            p_cls, p_regr = self.model_classifier.predict([share_layer, rois])
+            # p_cls, p_regr = self.model_classifier.predict([share_layer, rois])
+            p_cls, p_regr = self.model_classifier([share_layer, rois], training=False)
 
             for j in range(p_cls.shape[1]):
                 # 如果这个框置信度都小于阈值，那就直接跳过了
@@ -166,10 +167,10 @@ class FasterRCNN:
                 x2 = cx1 + w1 / 2.0
                 y2 = cy1 + h1 / 2.0
 
-                x1 = int(round(x1))
-                y1 = int(round(y1))
-                x2 = int(round(x2))
-                y2 = int(round(y2))
+                x1 = int(tf.round(x1))
+                y1 = int(tf.round(y1))
+                x2 = int(tf.round(x2))
+                y2 = int(tf.round(y2))
 
                 boxes.append([x1, y1, x2, y2])
                 probs.append(conf)
@@ -269,7 +270,7 @@ class FasterRCNN:
 if __name__ == '__main__':
     # img_path = r"D:\Python_Code\Dataset\VOCdevkit\VOC2012\JPEGImages\2011_002381.jpg"
     img_path = "street.jpg"
-    faster_rcnn = FasterRCNN("./logs/model/voc_1.8821.h5")
+    faster_rcnn = FasterRCNN("./logs/model/frcnn_1.8062.h5")
 
     image = Image.open(img_path)
     image = faster_rcnn.detect_image(image)
